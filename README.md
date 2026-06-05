@@ -2,16 +2,11 @@
 
 A phone-first static web app for documenting playground inspections, saving inspection history by playground, and tracking repair/work-order status.
 
-## Publish With GitHub Pages
+## Live App
 
-1. Create a new public GitHub repository.
-2. Upload `index.html` and this `README.md`.
-3. In the repository, open **Settings > Pages**.
-4. Under **Build and deployment**, choose **Deploy from a branch**.
-5. Select the `main` branch and `/ (root)`, then save.
-6. GitHub will publish the app at:
+After GitHub Pages is enabled, the app will be available at:
 
-   `https://YOUR-USERNAME.github.io/YOUR-REPOSITORY-NAME/`
+`https://achikicoa.github.io/playgroundinspections/`
 
 ## Data Storage
 
@@ -22,3 +17,10 @@ Inspection records are stored in the browser's local storage on the device that 
 - NRPA Daily Dozen Playground Safety Checklist
 - Ohio Administrative Code 5180:2-12-11
 - CPSI-style frequent inspection prompts
+
+## GitHub Pages Setup
+
+1. Open this repository on GitHub.
+2. Go to **Settings > Pages**.
+3. Under **Build and deployment**, choose **Deploy from a branch**.
+4. Select `main` and `/ (root)`, then save.
