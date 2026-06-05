@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Playground Inspection Log</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17211c;
+      --muted: #5c6b63;
+      --line: #d8e0da;
+      --soft: #f4f7f0;
+      --paper: #ffffff;
+      --brand: #176c5d;
+      --brand-dark: #0f4d44;
+      --warn: #9a5b00;
+      --danger: #a12828;
+      --ok: #226a3c;
+      --blue: #295f99;
+      --shadow: 0 10px 30px rgba(23, 33, 28, .12);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #eef3ed;
+      line-height: 1.4;
+      overflow-x: hidden;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 750;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding-bottom: 96px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+      background: rgba(255, 255, 255, .94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar {
+      max-width: 980px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.12rem;
+      letter-spacing: 0;
+    }
+
+    .subtle {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: .84rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #e8f2ee;
+      color: var(--brand-dark);
+      font-weight: 800;
+      font-size: .78rem;
+      white-space: nowrap;
+    }
+
+    main {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    section {
+      margin: 0 0 18px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 10px;
+      margin: 0 0 10px;
+    }
+
+    .section-title > * {
+      min-width: 0;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(230px, 78%);
+      gap: 10px;
+      overflow-x: auto;
+      padding: 2px 2px 12px;
+      scroll-snap-type: x mandatory;
+    }
+
+    .play-card {
+      text-align: left;
+      background: var(--paper);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      scroll-snap-align: start;
+    }
+
+    .play-card.active {
+      border-color: var(--brand);
+    }
+
+    .play-card strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 1rem;
+    }
+
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .tag {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 750;
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 5px 18px rgba(23, 33, 28, .07);
+    }
+
+    .grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .two {
+      grid-template-columns: 1fr;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 11px;
+      color: var(--ink);
+      background: #fff;
+      text-transform: none;
+      font-weight: 600;
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .primary {
+      background: var(--brand);
+      color: white;
+      padding: 0 14px;
+    }
+
+    .secondary {
+      background: #e8eee9;
+      color: var(--brand-dark);
+      padding: 0 12px;
+    }
+
+    .danger-btn {
+      background: #f6e7e7;
+      color: var(--danger);
+      padding: 0 12px;
+    }
+
+    .tabs {
+      position: sticky;
+      top: 68px;
+      z-index: 8;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      padding: 8px 0;
+      background: #eef3ed;
+    }
+
+    .tab {
+      background: #dde9e2;
+      color: var(--muted);
+      min-width: 0;
+      padding: 0 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab.active {
+      background: var(--brand-dark);
+      color: #fff;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .metric {
+      min-height: 72px;
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 1.28rem;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    details[open] {
+      box-shadow: 0 8px 20px rgba(23, 33, 28, .07);
+    }
+
+    summary {
+      min-height: 48px;
+      padding: 13px 12px;
+      cursor: pointer;
+      font-weight: 850;
+      list-style: none;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    .check {
+      display: grid;
+      gap: 9px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .check-title {
+      font-weight: 800;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: .86rem;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .segmented input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .segmented span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-weight: 850;
+      font-size: .86rem;
+    }
+
+    .segmented input:checked + span {
+      border-color: var(--brand);
+      background: #e7f4ef;
+      color: var(--brand-dark);
+    }
+
+    .issue input:checked + span {
+      border-color: var(--danger);
+      background: #fae9e9;
+      color: var(--danger);
+    }
+
+    .issue-fields {
+      display: none;
+      gap: 8px;
+    }
+
+    .issue-fields.show {
+      display: grid;
+    }
+
+    .history-list, .work-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .record, .work-order {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .record-head, .work-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .status-open { color: var(--danger); }
+    .status-progress { color: var(--warn); }
+    .status-done { color: var(--ok); }
+
+    .source-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .source {
+      border-left: 4px solid var(--brand);
+      padding: 10px 10px 10px 12px;
+      background: #f9fbf8;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .source strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .source a {
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .bottom-save {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.95);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .bottom-save .inner {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bottom-save button {
+      min-width: 0;
+      padding-left: 8px;
+      padding-right: 8px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 420px) {
+      .bottom-save .primary::after {
+        content: "Save";
+      }
+
+      .bottom-save .primary {
+        font-size: 0;
+      }
+
+      .bottom-save .primary::after {
+        font-size: .95rem;
+      }
+    }
+
+    .toast {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: 86px;
+      z-index: 30;
+      display: none;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: white;
+      box-shadow: var(--shadow);
+      font-weight: 750;
+    }
+
+    .toast.show { display: block; }
+
+    @media (min-width: 720px) {
+      main { padding: 22px; }
+      h1 { font-size: 1.35rem; }
+      .cards { grid-auto-columns: minmax(260px, 31%); }
+      .two { grid-template-columns: repeat(2, 1fr); }
+      .source-grid { grid-template-columns: repeat(2, 1fr); }
+      .tabs { top: 76px; }
+    }
+
+    @media print {
+      header, .tabs, .bottom-save, .actions, .playgrounds, .toast { display: none !important; }
+      body { background: white; }
+      main { padding: 0; }
+      .view { display: block; }
+      details { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="topbar">
+        <div>
+          <h1>Playground Inspection Log</h1>
+          <p class="subtle">Phone-first CPSI-style checks with Ohio child care prompts</p>
+        </div>
+        <span class="pill" id="todayPill"></span>
+      </div>
+    </header>
+
+    <main>
+      <section class="playgrounds">
+        <div class="section-title">
+          <h2>Playgrounds</h2>
+          <button class="secondary" id="addPlaygroundBtn" type="button">Add</button>
+        </div>
+        <div class="cards" id="playgroundCards"></div>
+      </section>
+
+      <section class="panel" id="playgroundEditor">
+        <div class="section-title">
+          <h2>Playground Card</h2>
+          <span class="tag" id="selectedStatus">Selected</span>
+        </div>
+        <div class="grid two">
+          <label>Name
+            <input id="playName" autocomplete="off" placeholder="North Yard">
+          </label>
+          <label>Age Group
+            <select id="playAge">
+              <option>6-23 months</option>
+              <option>2-5 years</option>
+              <option>5-12 years</option>
+              <option>Mixed ages</option>
+            </select>
+          </label>
+          <label>Location
+            <input id="playLocation" autocomplete="off" placeholder="Main campus, west gate">
+          </label>
+          <label>Surfacing
+            <select id="playSurface">
+              <option>Engineered wood fiber</option>
+              <option>Wood chips</option>
+              <option>Sand</option>
+              <option>Pea gravel</option>
+              <option>Rubber mulch</option>
+              <option>Poured-in-place rubber</option>
+              <option>Rubber tiles or mats</option>
+              <option>Synthetic turf</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="primary" id="savePlaygroundBtn" type="button">Save Playground</button>
+          <button class="danger-btn" id="deletePlaygroundBtn" type="button">Delete</button>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="App views">
+        <button class="tab active" data-tab="inspect" type="button">Inspect</button>
+        <button class="tab" data-tab="history" type="button">History</button>
+        <button class="tab" data-tab="work" type="button">Repairs</button>
+      </nav>
+
+      <section class="view active" id="inspectView">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Inspection Form</h2>
+            <span class="tag" id="activePlaygroundName"></span>
+          </div>
+          <div class="summary">
+            <div class="metric"><span>Checked</span><strong id="checkedCount">0</strong></div>
+            <div class="metric"><span>Issues</span><strong id="issueCount">0</strong></div>
+            <div class="metric"><span>Priority</span><strong id="topPriority">-</strong></div>
+          </div>
+          <div class="grid two">
+            <label>Inspection Date
+              <input id="inspectionDate" type="date">
+            </label>
+            <label>Time
+              <input id="inspectionTime" type="time">
+            </label>
+            <label>Inspected By
+              <input id="inspector" autocomplete="name" placeholder="Inspector name">
+            </label>
+            <label>Weather / Conditions
+              <input id="weather" autocomplete="off" placeholder="Dry, after rain, hot surface check">
+            </label>
+          </div>
+          <label style="margin-top:10px;">Overall Notes
+            <textarea id="overallNotes" placeholder="Required repairs, comments, closures, or parent/staff reports"></textarea>
+          </label>
+        </div>
+        <div id="checklist"></div>
+      </section>
+
+      <section class="view" id="historyView">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Saved Inspections</h2>
+            <button class="secondary" id="printBtn" type="button">Print</button>
+          </div>
+          <label>Previous versions
+            <select id="historySelect"></select>
+          </label>
+          <div class="actions">
+            <button class="primary" id="loadHistoryBtn" type="button">Load Selected</button>
+            <button class="secondary" id="exportBtn" type="button">Export JSON</button>
+          </div>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="view" id="workView">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Repair Status</h2>
+            <span class="tag" id="workCount">0 open</span>
+          </div>
+          <label>Filter
+            <select id="workFilter">
+              <option value="all">All work orders</option>
+              <option value="Open">Open</option>
+              <option value="In progress">In progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </label>
+        </div>
+        <div class="work-list" id="workList"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <h2>Inspection Guidance</h2>
+          <span class="tag">Reference prompts</span>
+        </div>
+        <div class="source-grid">
+          <div class="source">
+            <strong>Priority scale</strong>
+            1: correct immediately. 2: correct as soon as possible. 3: correct when time permits. 4: monitor for worsening.
+          </div>
+          <div class="source">
+            <strong>Ohio child care notes</strong>
+            Quarterly playground inspection records should be kept for one year. Outdoor spaces need adequate usable area, protected boundaries, functional gate latches, shade, bathroom/drinking-water access, and safe fall zones.
+          </div>
+          <div class="source">
+            <strong>CPSI / NRPA focus</strong>
+            Surface protection, accessibility, supervision, age-appropriate equipment, use zones, protrusions, entrapment, trip hazards, crush/shear points, and routine maintenance.
+          </div>
+          <div class="source">
+            <strong>Sources</strong>
+            <a href="https://www.nrpa.org/siteassets/the-daily-dozen-12-point-playground-safety-checklist.pdf">NRPA Daily Dozen</a>,
+            <a href="https://codes.ohio.gov/ohio-administrative-code/rule-5180%3A2-12-11">Ohio Admin. Code 5180:2-12-11</a>,
+            <a href="https://playgroundsafetyinspections.net/wp-content/uploads/2020/06/Frequent-Inspection-Form.docx.pdf">Frequent Inspection Form</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="bottom-save">
+      <div class="inner">
+        <button class="secondary" id="resetBtn" type="button">Reset Form</button>
+        <button class="primary" id="saveInspectionBtn" type="button">Save Inspection</button>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "playgroundInspectionLog.v1";
+    const checklistGroups = [
+      {
+        title: "Surfacing and Fall Zones",
+        items: [
+          ["surface-depth", "Protective surfacing is adequate for equipment height and type.", "Check loose-fill depth, unitary surface condition, compaction, kick-out, drainage, and manufacturer depth guidance."],
+          ["transition", "Accessible route and surface transitions are smooth.", "Flag changes over 0.5 in., gaps, buckling, or edges that block mobility devices."],
+          ["fall-zone", "Use zones/fall zones are clear and correctly extended.", "Ohio prompts include at least 6 ft. around most equipment, measured from furthest swing/moving extension."],
+          ["foreign-material", "Surfacing is free of trash, weeds, glass, animal waste, and foreign objects.", "Loose fill should be raked as needed before children use the area."],
+          ["hard-surface", "Equipment is not placed over concrete, asphalt, grass, dirt, rocks, or other hard surfaces.", "Record any exposed hard surface immediately."]
+        ]
+      },
+      {
+        title: "Equipment Condition",
+        items: [
+          ["hardware", "Hardware, clamps, rivets, caps, and anchors are secure.", "Look for missing caps, loose fasteners, exposed footings, unstable posts, or damaged borders."],
+          ["rust-cracks", "Equipment is free of rust, cracks, holes, splinters, sharp edges, peeling paint, and toxic hazards.", "Include plastic, wood, metal, coatings, and contact points near the ground."],
+          ["barriers", "Guardrails, protective barriers, decks, platforms, and steps are secure.", "Ohio requires protective barriers on platforms 30 in. high or higher."],
+          ["moving-parts", "Moving parts do not create crush, shear, pinch, or excessive-wear hazards.", "Check swings, bridges, track rides, rollers, seesaws, and rotating pieces."],
+          ["signage", "Age-use signs, warning labels, and supervision sight lines are in place.", "Confirm the playground matches the age group on the card."]
+        ]
+      },
+      {
+        title: "Entrapment and Entanglement",
+        items: [
+          ["openings", "Openings do not create head, neck, or body entrapment.", "Flag openings greater than 3.5 in. and less than 9 in., especially near slides, decks, and climbers."],
+          ["hooks", "S-hooks, chains, ropes, and connectors are closed and safe.", "Ohio requires S-hooks closed to prevent chain slip and strangulation risk."],
+          ["ropes", "Climbing ropes are anchored at both ends and cannot form unsafe loops.", "Flag any added ropes, cords, strings, or clothing-catch points."],
+          ["protrusions", "Bolts, handholds, and hardware do not protrude or form hooks.", "Look for extension beyond nuts, snag points, and slide-entry entanglement hazards."]
+        ]
+      },
+      {
+        title: "Site, Boundaries, and ODJFS Prompts",
+        items: [
+          ["fence-gates", "Fence, natural barrier, and gates are continuous, in good condition, and latched.", "Children should not be able to leave unsupervised; gates cannot be locked while children are present."],
+          ["traffic-water", "Traffic, animals, bodies of water, and exterior hazards are separated from play areas.", "Water hazards need a physical barrier beyond the center door."],
+          ["space-shade", "Outdoor play space has usable area, shade, bathroom access, and drinking water.", "Ohio rule states at least 60 sq. ft. per child using the outdoor area at one time."],
+          ["debris-drainage", "The whole play area has satisfactory drainage and is clean before use.", "Pay close attention under swings, slide exits, and heavy-use spots."],
+          ["sandbox", "Sandboxes are covered when the program is closed.", "For 24-hour programs, cover during non-daylight hours."]
+        ]
+      }
+    ];
+
+    let state = loadState();
+    let selectedPlaygroundId = state.playgrounds[0]?.id;
+
+    const $ = (id) => document.getElementById(id);
+
+    function defaultState() {
+      const id = crypto.randomUUID();
+      return {
+        playgrounds: [{
+          id,
+          name: "Main Playground",
+          age: "2-5 years",
+          location: "Center outdoor play area",
+          surface: "Engineered wood fiber",
+          createdAt: new Date().toISOString()
+        }],
+        inspections: [],
+        workOrders: []
+      };
+    }
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (saved && Array.isArray(saved.playgrounds)) return saved;
+      } catch (error) {}
+      return defaultState();
+    }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function currentPlayground() {
+      return state.playgrounds.find((playground) => playground.id === selectedPlaygroundId) || state.playgrounds[0];
+    }
+
+    function formatDate(value) {
+      if (!value) return "No date";
+      return new Date(value + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function toast(message) {
+      $("toast").textContent = message;
+      $("toast").classList.add("show");
+      window.clearTimeout(window.toastTimer);
+      window.toastTimer = window.setTimeout(() => $("toast").classList.remove("show"), 2600);
+    }
+
+    function setToday() {
+      const now = new Date();
+      $("todayPill").textContent = now.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      $("inspectionDate").value = now.toISOString().slice(0, 10);
+      $("inspectionTime").value = now.toTimeString().slice(0, 5);
+    }
+
+    function renderPlaygrounds() {
+      const cards = $("playgroundCards");
+      cards.innerHTML = "";
+      state.playgrounds.forEach((playground) => {
+        const inspections = state.inspections.filter((record) => record.playgroundId === playground.id);
+        const openWork = state.workOrders.filter((work) => work.playgroundId === playground.id && work.status !== "Completed").length;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "play-card" + (playground.id === selectedPlaygroundId ? " active" : "");
+        button.innerHTML = `
+          <strong>${escapeHtml(playground.name)}</strong>
+          <div class="hint">${escapeHtml(playground.location || "No location set")}</div>
+          <div class="card-meta">
+            <span class="tag">${escapeHtml(playground.age)}</span>
+            <span class="tag">${inspections.length} inspections</span>
+            <span class="tag">${openWork} repairs</span>
+          </div>
+        `;
+        button.addEventListener("click", () => {
+          selectedPlaygroundId = playground.id;
+          populatePlaygroundEditor();
+          renderAll();
+        });
+        cards.appendChild(button);
+      });
+    }
+
+    function populatePlaygroundEditor() {
+      const playground = currentPlayground();
+      if (!playground) return;
+      $("playName").value = playground.name;
+      $("playAge").value = playground.age;
+      $("playLocation").value = playground.location;
+      $("playSurface").value = playground.surface;
+      $("activePlaygroundName").textContent = playground.name;
+    }
+
+    function renderChecklist() {
+      const container = $("checklist");
+      container.innerHTML = "";
+      checklistGroups.forEach((group, groupIndex) => {
+        const details = document.createElement("details");
+        details.open = groupIndex < 2;
+        details.innerHTML = `<summary>${escapeHtml(group.title)}</summary>`;
+        group.items.forEach(([id, title, hint]) => {
+          const row = document.createElement("div");
+          row.className = "check";
+          row.dataset.item = id;
+          row.innerHTML = `
+            <div>
+              <div class="check-title">${escapeHtml(title)}</div>
+              <div class="hint">${escapeHtml(hint)}</div>
+            </div>
+            <div class="segmented">
+              <label><input type="radio" name="${id}-status" value="Pass"><span>Pass</span></label>
+              <label class="issue"><input type="radio" name="${id}-status" value="Issue"><span>Issue</span></label>
+              <label><input type="radio" name="${id}-status" value="N/A"><span>N/A</span></label>
+            </div>
+            <div class="issue-fields" id="${id}-fields">
+              <div class="grid two">
+                <label>Priority
+                  <select data-field="${id}-priority">
+                    <option value="1">1 - correct immediately</option>
+                    <option value="2">2 - correct as soon as possible</option>
+                    <option value="3" selected>3 - correct when time permits</option>
+                    <option value="4">4 - monitor</option>
+                  </select>
+                </label>
+                <label>Repair Status
+                  <select data-field="${id}-repairStatus">
+                    <option>Open</option>
+                    <option>In progress</option>
+                    <option>Completed</option>
+                  </select>
+                </label>
+              </div>
+              <label>Issue / Repair Notes
+                <textarea data-field="${id}-notes" placeholder="What was found, where it is, and what repair is needed"></textarea>
+              </label>
+            </div>
+          `;
+          row.querySelectorAll("input[type='radio']").forEach((radio) => {
+            radio.addEventListener("change", () => {
+              row.querySelector(".issue-fields").classList.toggle("show", radio.value === "Issue" && radio.checked);
+              updateSummary();
+            });
+          });
+          row.querySelectorAll("select, textarea").forEach((field) => field.addEventListener("input", updateSummary));
+          details.appendChild(row);
+        });
+        container.appendChild(details);
+      });
+    }
+
+    function getInspectionFromForm() {
+      const playground = currentPlayground();
+      const items = [];
+      checklistGroups.forEach((group) => {
+        group.items.forEach(([id, title, hint]) => {
+          const checked = document.querySelector(`input[name="${id}-status"]:checked`);
+          const status = checked?.value || "";
+          items.push({
+            id,
+            group: group.title,
+            title,
+            hint,
+            status,
+            priority: document.querySelector(`[data-field="${id}-priority"]`)?.value || "3",
+            repairStatus: document.querySelector(`[data-field="${id}-repairStatus"]`)?.value || "Open",
+            notes: document.querySelector(`[data-field="${id}-notes"]`)?.value.trim() || ""
+          });
+        });
+      });
+      return {
+        id: crypto.randomUUID(),
+        playgroundId: playground.id,
+        playgroundName: playground.name,
+        date: $("inspectionDate").value,
+        time: $("inspectionTime").value,
+        inspector: $("inspector").value.trim(),
+        weather: $("weather").value.trim(),
+        overallNotes: $("overallNotes").value.trim(),
+        items,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    function updateSummary() {
+      const inspection = getInspectionFromForm();
+      const checked = inspection.items.filter((item) => item.status).length;
+      const issues = inspection.items.filter((item) => item.status === "Issue");
+      const top = issues.length ? Math.min(...issues.map((item) => Number(item.priority))) : "-";
+      $("checkedCount").textContent = checked;
+      $("issueCount").textContent = issues.length;
+      $("topPriority").textContent = top;
+    }
+
+    function resetInspectionForm(keepPerson = true) {
+      const inspector = $("inspector").value;
+      $("weather").value = "";
+      $("overallNotes").value = "";
+      document.querySelectorAll("#checklist input[type='radio']").forEach((radio) => radio.checked = false);
+      document.querySelectorAll("#checklist textarea").forEach((field) => field.value = "");
+      document.querySelectorAll("#checklist select").forEach((field) => {
+        if (field.dataset.field?.endsWith("priority")) field.value = "3";
+        if (field.dataset.field?.endsWith("repairStatus")) field.value = "Open";
+      });
+      document.querySelectorAll(".issue-fields").forEach((field) => field.classList.remove("show"));
+      setToday();
+      if (keepPerson) $("inspector").value = inspector;
+      updateSummary();
+    }
+
+    function saveInspection() {
+      const inspection = getInspectionFromForm();
+      if (!inspection.inspector) {
+        toast("Add an inspector name before saving.");
+        $("inspector").focus();
+        return;
+      }
+      const checked = inspection.items.filter((item) => item.status).length;
+      if (!checked) {
+        toast("Mark at least one checklist item before saving.");
+        return;
+      }
+      state.inspections.unshift(inspection);
+      inspection.items.filter((item) => item.status === "Issue").forEach((item) => {
+        state.workOrders.unshift({
+          id: crypto.randomUUID(),
+          inspectionId: inspection.id,
+          playgroundId: inspection.playgroundId,
+          playgroundName: inspection.playgroundName,
+          itemId: item.id,
+          itemTitle: item.title,
+          priority: item.priority,
+          status: item.repairStatus,
+          notes: item.notes,
+          createdAt: new Date().toISOString(),
+          inspectionDate: inspection.date
+        });
+      });
+      persist();
+      renderAll();
+      resetInspectionForm(true);
+      toast("Inspection saved and form reset.");
+    }
+
+    function renderHistory() {
+      const select = $("historySelect");
+      const list = $("historyList");
+      const records = state.inspections.filter((record) => record.playgroundId === currentPlayground().id);
+      select.innerHTML = records.length
+        ? records.map((record) => `<option value="${record.id}">${formatDate(record.date)} ${record.time || ""} - ${escapeHtml(record.inspector || "Unknown")}</option>`).join("")
+        : `<option value="">No saved inspections</option>`;
+      list.innerHTML = records.length ? "" : `<div class="panel hint">No inspections saved for this playground yet.</div>`;
+      records.forEach((record) => {
+        const issues = record.items.filter((item) => item.status === "Issue");
+        const checked = record.items.filter((item) => item.status).length;
+        const div = document.createElement("article");
+        div.className = "record";
+        div.innerHTML = `
+          <div class="record-head">
+            <div>
+              <strong>${formatDate(record.date)} ${escapeHtml(record.time || "")}</strong>
+              <div class="hint">${escapeHtml(record.inspector || "Unknown inspector")} - ${checked} checked - ${issues.length} issues</div>
+            </div>
+            <span class="tag">${issues.length ? "Priority " + Math.min(...issues.map((item) => Number(item.priority))) : "Clear"}</span>
+          </div>
+          ${record.weather ? `<div class="hint"><strong>Conditions:</strong> ${escapeHtml(record.weather)}</div>` : ""}
+          ${record.overallNotes ? `<p>${escapeHtml(record.overallNotes)}</p>` : ""}
+          ${issues.map((item) => `<p><strong>P${item.priority}:</strong> ${escapeHtml(item.title)}<br><span class="hint">${escapeHtml(item.notes || "No repair notes added.")}</span></p>`).join("")}
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function loadInspectionToForm() {
+      const id = $("historySelect").value;
+      const record = state.inspections.find((inspection) => inspection.id === id);
+      if (!record) return;
+      $("inspectionDate").value = record.date;
+      $("inspectionTime").value = record.time;
+      $("inspector").value = record.inspector;
+      $("weather").value = record.weather;
+      $("overallNotes").value = record.overallNotes;
+      record.items.forEach((item) => {
+        const radio = document.querySelector(`input[name="${item.id}-status"][value="${item.status}"]`);
+        if (radio) radio.checked = true;
+        const priority = document.querySelector(`[data-field="${item.id}-priority"]`);
+        const repairStatus = document.querySelector(`[data-field="${item.id}-repairStatus"]`);
+        const notes = document.querySelector(`[data-field="${item.id}-notes"]`);
+        if (priority) priority.value = item.priority;
+        if (repairStatus) repairStatus.value = item.repairStatus;
+        if (notes) notes.value = item.notes;
+        const fields = $(`${item.id}-fields`);
+        if (fields) fields.classList.toggle("show", item.status === "Issue");
+      });
+      switchTab("inspect");
+      updateSummary();
+      toast("Previous inspection loaded for review.");
+    }
+
+    function renderWorkOrders() {
+      const list = $("workList");
+      const filter = $("workFilter").value;
+      const orders = state.workOrders
+        .filter((order) => order.playgroundId === currentPlayground().id)
+        .filter((order) => filter === "all" || order.status === filter);
+      const open = state.workOrders.filter((order) => order.playgroundId === currentPlayground().id && order.status !== "Completed").length;
+      $("workCount").textContent = `${open} open`;
+      list.innerHTML = orders.length ? "" : `<div class="panel hint">No repair items match this filter.</div>`;
+      orders.forEach((order) => {
+        const article = document.createElement("article");
+        article.className = "work-order";
+        const statusClass = order.status === "Completed" ? "status-done" : order.status === "In progress" ? "status-progress" : "status-open";
+        article.innerHTML = `
+          <div class="work-head">
+            <div>
+              <strong>P${order.priority}: ${escapeHtml(order.itemTitle)}</strong>
+              <div class="hint">${formatDate(order.inspectionDate)} - ${escapeHtml(order.playgroundName)}</div>
+            </div>
+            <span class="${statusClass}"><strong>${escapeHtml(order.status)}</strong></span>
+          </div>
+          <p>${escapeHtml(order.notes || "No repair notes added.")}</p>
+          <label>Repair Status
+            <select data-work-status="${order.id}">
+              <option ${order.status === "Open" ? "selected" : ""}>Open</option>
+              <option ${order.status === "In progress" ? "selected" : ""}>In progress</option>
+              <option ${order.status === "Completed" ? "selected" : ""}>Completed</option>
+            </select>
+          </label>
+        `;
+        article.querySelector("select").addEventListener("change", (event) => {
+          order.status = event.target.value;
+          order.updatedAt = new Date().toISOString();
+          persist();
+          renderAll();
+          toast("Repair status updated.");
+        });
+        list.appendChild(article);
+      });
+    }
+
+    function savePlayground() {
+      const playground = currentPlayground();
+      playground.name = $("playName").value.trim() || "Unnamed Playground";
+      playground.age = $("playAge").value;
+      playground.location = $("playLocation").value.trim();
+      playground.surface = $("playSurface").value;
+      persist();
+      renderAll();
+      toast("Playground card saved.");
+    }
+
+    function addPlayground() {
+      const playground = {
+        id: crypto.randomUUID(),
+        name: "New Playground",
+        age: "2-5 years",
+        location: "",
+        surface: "Engineered wood fiber",
+        createdAt: new Date().toISOString()
+      };
+      state.playgrounds.push(playground);
+      selectedPlaygroundId = playground.id;
+      persist();
+      populatePlaygroundEditor();
+      renderAll();
+      $("playName").focus();
+    }
+
+    function deletePlayground() {
+      if (state.playgrounds.length === 1) {
+        toast("Keep at least one playground card.");
+        return;
+      }
+      const playground = currentPlayground();
+      const ok = confirm(`Delete ${playground.name}? Saved inspections and repairs for it will also be removed.`);
+      if (!ok) return;
+      state.playgrounds = state.playgrounds.filter((item) => item.id !== playground.id);
+      state.inspections = state.inspections.filter((item) => item.playgroundId !== playground.id);
+      state.workOrders = state.workOrders.filter((item) => item.playgroundId !== playground.id);
+      selectedPlaygroundId = state.playgrounds[0].id;
+      persist();
+      renderAll();
+      toast("Playground deleted.");
+    }
+
+    function exportData() {
+      const data = {
+        playground: currentPlayground(),
+        inspections: state.inspections.filter((record) => record.playgroundId === currentPlayground().id),
+        workOrders: state.workOrders.filter((order) => order.playgroundId === currentPlayground().id)
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${currentPlayground().name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-inspections.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
+      document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${tab}View`));
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    function renderAll() {
+      renderPlaygrounds();
+      populatePlaygroundEditor();
+      renderHistory();
+      renderWorkOrders();
+      updateSummary();
+    }
+
+    document.querySelectorAll(".tab").forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.dataset.tab));
+    });
+    $("savePlaygroundBtn").addEventListener("click", savePlayground);
+    $("addPlaygroundBtn").addEventListener("click", addPlayground);
+    $("deletePlaygroundBtn").addEventListener("click", deletePlayground);
+    $("saveInspectionBtn").addEventListener("click", saveInspection);
+    $("resetBtn").addEventListener("click", () => resetInspectionForm(true));
+    $("loadHistoryBtn").addEventListener("click", loadInspectionToForm);
+    $("exportBtn").addEventListener("click", exportData);
+    $("printBtn").addEventListener("click", () => window.print());
+    $("workFilter").addEventListener("change", renderWorkOrders);
+
+    setToday();
+    renderChecklist();
+    populatePlaygroundEditor();
+    renderAll();
+  </script>
+</body>
+</html>
