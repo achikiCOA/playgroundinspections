@@ -611,6 +611,8 @@
           <div class="actions">
             <button class="primary" id="loadHistoryBtn" type="button">Load Selected</button>
             <button class="secondary" id="exportBtn" type="button">Export JSON</button>
+            <button class="secondary" id="importBtn" type="button">Import JSON</button>
+            <input id="importFile" type="file" accept="application/json,.json" hidden>
           </div>
         </div>
         <div class="history-list" id="historyList"></div>
@@ -643,6 +645,10 @@
           <div class="source">
             <strong>Priority scale</strong>
             1: correct immediately. 2: correct as soon as possible. 3: correct when time permits. 4: monitor for worsening.
+          </div>
+          <div class="source">
+            <strong>Storage note</strong>
+            Saved inspections stay on the device and browser that entered them. Use Export JSON and Import JSON to move records between devices, or connect a cloud database for automatic sync.
           </div>
           <div class="source">
             <strong>Ohio child care notes</strong>
@@ -1114,6 +1120,49 @@
       URL.revokeObjectURL(url);
     }
 
+    function importData(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = JSON.parse(reader.result);
+          const playgrounds = imported.playgrounds || (imported.playground ? [imported.playground] : []);
+          const inspections = imported.inspections || [];
+          const workOrders = imported.workOrders || [];
+          if (!playgrounds.length && !inspections.length && !workOrders.length) {
+            toast("That JSON file does not look like an inspection export.");
+            return;
+          }
+
+          playgrounds.forEach((playground) => {
+            const existing = state.playgrounds.find((item) => item.id === playground.id);
+            if (existing) Object.assign(existing, playground);
+            else state.playgrounds.push(playground);
+          });
+          mergeById(state.inspections, inspections);
+          mergeById(state.workOrders, workOrders);
+
+          if (playgrounds[0]?.id) selectedPlaygroundId = playgrounds[0].id;
+          persist();
+          renderAll();
+          toast(`Imported ${inspections.length} inspections and ${workOrders.length} repairs.`);
+        } catch (error) {
+          toast("Import failed. Choose a valid inspection JSON export.");
+        } finally {
+          $("importFile").value = "";
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function mergeById(target, incoming) {
+      incoming.forEach((record) => {
+        const existingIndex = target.findIndex((item) => item.id === record.id);
+        if (existingIndex >= 0) target[existingIndex] = record;
+        else target.unshift(record);
+      });
+    }
+
     function switchTab(tab) {
       document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
       document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${tab}View`));
@@ -1147,6 +1196,8 @@
     $("resetBtn").addEventListener("click", () => resetInspectionForm(true));
     $("loadHistoryBtn").addEventListener("click", loadInspectionToForm);
     $("exportBtn").addEventListener("click", exportData);
+    $("importBtn").addEventListener("click", () => $("importFile").click());
+    $("importFile").addEventListener("change", (event) => importData(event.target.files[0]));
     $("printBtn").addEventListener("click", () => window.print());
     $("workFilter").addEventListener("change", renderWorkOrders);
 
