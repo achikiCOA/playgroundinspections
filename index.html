@@ -852,6 +852,57 @@
     const STORAGE_KEY = "playgroundInspectionLog.v1";
     const INTRO_SEEN_KEY = "playgroundInspectionIntro.seen";
     const INTRO_ALWAYS_KEY = "playgroundInspectionIntro.always";
+    const standardPlaygrounds = [
+      {
+        id: "standard-east-state-grade-school",
+        name: "East State Street Grade School Playground",
+        age: "5-12 years",
+        location: "East State Street",
+        surface: "Engineered wood fiber"
+      },
+      {
+        id: "standard-east-state-preschool",
+        name: "East State Street Preschool Playground",
+        age: "2-5 years",
+        location: "East State Street",
+        surface: "Engineered wood fiber"
+      },
+      {
+        id: "standard-highland-park",
+        name: "Highland Park Playground",
+        age: "Mixed ages",
+        location: "Highland Park",
+        surface: "Engineered wood fiber"
+      },
+      {
+        id: "standard-richland-toddler",
+        name: "Richland Avenue Park Toddler Play Area",
+        age: "6-23 months",
+        location: "Richland Avenue Park",
+        surface: "Engineered wood fiber"
+      },
+      {
+        id: "standard-richland-grade-school",
+        name: "Richland Avenue Park Grade School Playground",
+        age: "5-12 years",
+        location: "Richland Avenue Park",
+        surface: "Engineered wood fiber"
+      },
+      {
+        id: "standard-west-state-fenway",
+        name: "West State Street Park Playground by Fenway",
+        age: "Mixed ages",
+        location: "West State Street Park",
+        surface: "Engineered wood fiber"
+      },
+      {
+        id: "standard-west-state-end-road",
+        name: "West State Street Park Playground at End of Road",
+        age: "Mixed ages",
+        location: "West State Street Park",
+        surface: "Engineered wood fiber"
+      }
+    ];
     const checklistGroups = [
       {
         title: "Surfacing and Fall Zones",
@@ -900,16 +951,11 @@
     const $ = (id) => document.getElementById(id);
 
     function defaultState() {
-      const id = crypto.randomUUID();
       return {
-        playgrounds: [{
-          id,
-          name: "Main Playground",
-          age: "2-5 years",
-          location: "Center outdoor play area",
-          surface: "Engineered wood fiber",
+        playgrounds: standardPlaygrounds.map((playground) => ({
+          ...playground,
           createdAt: new Date().toISOString()
-        }],
+        })),
         inspections: [],
         workOrders: []
       };
@@ -918,9 +964,26 @@
     function loadState() {
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (saved && Array.isArray(saved.playgrounds)) return saved;
+        if (saved && Array.isArray(saved.playgrounds)) return withStandardPlaygrounds(saved);
       } catch (error) {}
       return defaultState();
+    }
+
+    function withStandardPlaygrounds(saved) {
+      let changed = false;
+      standardPlaygrounds.forEach((standard) => {
+        const hasSameId = saved.playgrounds.some((playground) => playground.id === standard.id);
+        const hasSameName = saved.playgrounds.some((playground) => playground.name?.toLowerCase() === standard.name.toLowerCase());
+        if (!hasSameId && !hasSameName) {
+          saved.playgrounds.push({
+            ...standard,
+            createdAt: new Date().toISOString()
+          });
+          changed = true;
+        }
+      });
+      if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+      return saved;
     }
 
     function persist() {
