@@ -500,6 +500,10 @@
       margin-top: 12px;
     }
 
+    .print-summary {
+      display: none;
+    }
+
     .history-list, .work-list {
       display: grid;
       gap: 10px;
@@ -615,11 +619,75 @@
     }
 
     @media print {
-      header, .tabs, .bottom-save, .actions, .playgrounds, .toast { display: none !important; }
+      header, .tabs, .bottom-save, .actions, .playgrounds, .toast, .intro { display: none !important; }
       body { background: white; }
       main { padding: 0; }
       .view { display: block; }
       details { break-inside: avoid; }
+
+      body.printing-summary main > section {
+        display: none !important;
+      }
+
+      body.printing-summary .print-summary {
+        display: block !important;
+        color: #111;
+        font-size: 11pt;
+      }
+
+      .print-summary h1 {
+        font-size: 20pt;
+        margin: 0 0 6pt;
+      }
+
+      .print-summary h2 {
+        font-size: 14pt;
+        margin: 18pt 0 6pt;
+        border-bottom: 1px solid #999;
+        padding-bottom: 3pt;
+      }
+
+      .print-summary table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 6pt;
+      }
+
+      .print-summary th,
+      .print-summary td {
+        border: 1px solid #999;
+        padding: 5pt;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .print-summary th {
+        background: #eee;
+      }
+
+      .print-summary .summary-boxes {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6pt;
+        margin: 12pt 0;
+      }
+
+      .print-summary .summary-box {
+        border: 1px solid #999;
+        padding: 8pt;
+      }
+
+      .print-summary .signature-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18pt;
+        margin-top: 24pt;
+      }
+
+      .print-summary .signature-line {
+        border-top: 1px solid #111;
+        padding-top: 5pt;
+      }
     }
   </style>
 </head>
@@ -772,7 +840,7 @@
         <div class="panel">
           <div class="section-title">
             <h2>Saved Inspections</h2>
-            <button class="secondary" id="printBtn" type="button">Print</button>
+            <button class="secondary" id="printBtn" type="button">Print Binder Summary</button>
           </div>
           <label>Previous versions
             <select id="historySelect"></select>
@@ -837,6 +905,8 @@
           </div>
         </div>
       </section>
+
+      <section class="print-summary" id="printSummary" aria-label="Printable playground inspection summary"></section>
     </main>
 
     <div class="bottom-save">
@@ -997,6 +1067,11 @@
     function formatDate(value) {
       if (!value) return "No date";
       return new Date(value + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "";
+      return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
     }
 
     function toast(message) {
@@ -1359,6 +1434,120 @@
       `;
     }
 
+    function printBinderSummary() {
+      renderPrintSummary();
+      document.body.classList.add("printing-summary");
+      window.print();
+    }
+
+    function renderPrintSummary() {
+      const playground = currentPlayground();
+      const records = state.inspections.filter((record) => record.playgroundId === playground.id);
+      const sortedRecords = [...records].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.time || "").localeCompare(a.time || ""));
+      const openRepairs = state.workOrders.filter((order) => order.playgroundId === playground.id && order.status !== "Completed");
+      const completedRepairs = state.workOrders.filter((order) => order.playgroundId === playground.id && order.status === "Completed");
+      const allIssues = records.flatMap((record) => record.items.filter((item) => item.status === "Issue"));
+      const priorityOne = allIssues.filter((item) => item.priority === "1").length;
+      const latest = sortedRecords[0];
+      const recent = sortedRecords.slice(0, 12);
+      const generated = new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+
+      $("printSummary").innerHTML = `
+        <h1>Playground Inspection Summary</h1>
+        <p><strong>Playground:</strong> ${escapeHtml(playground.name)}</p>
+        <p><strong>Location:</strong> ${escapeHtml(playground.location || "Not listed")} &nbsp; <strong>Age group:</strong> ${escapeHtml(playground.age)} &nbsp; <strong>Surface:</strong> ${escapeHtml(playground.surface)}</p>
+        <p><strong>Generated:</strong> ${generated}</p>
+
+        <div class="summary-boxes">
+          <div class="summary-box"><strong>Total inspections</strong><br>${records.length}</div>
+          <div class="summary-box"><strong>Last inspection</strong><br>${latest ? `${formatDate(latest.date)} ${escapeHtml(latest.time || "")}` : "None"}</div>
+          <div class="summary-box"><strong>Open repairs</strong><br>${openRepairs.length}</div>
+          <div class="summary-box"><strong>Priority 1 issues</strong><br>${priorityOne}</div>
+        </div>
+
+        <h2>Open Repair Items</h2>
+        ${openRepairs.length ? `
+          <table>
+            <thead><tr><th>Priority</th><th>Inspection Date</th><th>Item</th><th>Status</th><th>Repair Notes</th></tr></thead>
+            <tbody>
+              ${openRepairs.map((order) => `
+                <tr>
+                  <td>${escapeHtml(order.priority)}</td>
+                  <td>${formatDate(order.inspectionDate)}</td>
+                  <td>${escapeHtml(order.itemTitle)}</td>
+                  <td>${escapeHtml(order.status)}</td>
+                  <td>${escapeHtml(order.notes || "No notes added.")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        ` : "<p>No open repair items for this playground.</p>"}
+
+        <h2>Recent Inspection Log</h2>
+        ${recent.length ? `
+          <table>
+            <thead><tr><th>Date</th><th>Inspector</th><th>Checked</th><th>Issues</th><th>Notes</th></tr></thead>
+            <tbody>
+              ${recent.map((record) => {
+                const checked = record.items.filter((item) => item.status).length;
+                const issues = record.items.filter((item) => item.status === "Issue");
+                return `
+                  <tr>
+                    <td>${formatDate(record.date)} ${escapeHtml(record.time || "")}</td>
+                    <td>${escapeHtml(record.inspector || "Unknown")}</td>
+                    <td>${checked}/${record.items.length}</td>
+                    <td>${issues.length}</td>
+                    <td>${escapeHtml(record.overallNotes || record.weather || "")}</td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        ` : "<p>No saved inspections for this playground.</p>"}
+
+        <h2>Issue Detail</h2>
+        ${allIssues.length ? `
+          <table>
+            <thead><tr><th>Date</th><th>Priority</th><th>Checklist Item</th><th>Repair Status</th><th>Notes</th></tr></thead>
+            <tbody>
+              ${sortedRecords.flatMap((record) => record.items
+                .filter((item) => item.status === "Issue")
+                .map((item) => `
+                  <tr>
+                    <td>${formatDate(record.date)}</td>
+                    <td>${escapeHtml(item.priority)}</td>
+                    <td>${escapeHtml(item.title)}</td>
+                    <td>${escapeHtml(item.repairStatus)}</td>
+                    <td>${escapeHtml(item.notes || "No notes added.")}</td>
+                  </tr>
+                `)).join("")}
+            </tbody>
+          </table>
+        ` : "<p>No issue details recorded for this playground.</p>"}
+
+        <h2>Completed Repairs</h2>
+        ${completedRepairs.length ? `
+          <table>
+            <thead><tr><th>Inspection Date</th><th>Item</th><th>Completed / Updated</th></tr></thead>
+            <tbody>
+              ${completedRepairs.slice(0, 12).map((order) => `
+                <tr>
+                  <td>${formatDate(order.inspectionDate)}</td>
+                  <td>${escapeHtml(order.itemTitle)}</td>
+                  <td>${formatDateTime(order.updatedAt) || "Marked completed"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        ` : "<p>No completed repairs recorded for this playground.</p>"}
+
+        <div class="signature-row">
+          <div class="signature-line">Reviewed by</div>
+          <div class="signature-line">Review date</div>
+        </div>
+      `;
+    }
+
     function loadInspectionToForm() {
       const id = $("historySelect").value;
       const record = state.inspections.find((inspection) => inspection.id === id);
@@ -1605,8 +1794,9 @@
     $("exportCsvBtn").addEventListener("click", exportCsv);
     $("importBtn").addEventListener("click", () => $("importFile").click());
     $("importFile").addEventListener("change", (event) => importData(event.target.files[0]));
-    $("printBtn").addEventListener("click", () => window.print());
+    $("printBtn").addEventListener("click", printBinderSummary);
     $("workFilter").addEventListener("change", renderWorkOrders);
+    window.addEventListener("afterprint", () => document.body.classList.remove("printing-summary"));
 
     setToday();
     renderChecklist();
