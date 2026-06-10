@@ -10,7 +10,7 @@ After GitHub Pages is enabled, the app will be available at:
 
 ## Data Storage
 
-Inspection records are stored in the browser's local storage on the device that completes the inspection. Use the built-in JSON export for backup or record transfer.
+Inspection records are stored in the browser's local storage on the device that completes the inspection. Use the built-in JSON export for backup or record transfer. JSON exports include saved repair items and attached issue photos. CSV exports are available for spreadsheet review, but they only note whether a photo was attached.
 
 ## Inspection References
 

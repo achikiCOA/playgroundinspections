@@ -377,6 +377,42 @@
       display: grid;
     }
 
+    .photo-tools {
+      display: grid;
+      gap: 8px;
+    }
+
+    .photo-preview {
+      display: none;
+      width: 100%;
+      max-height: 180px;
+      object-fit: cover;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .photo-preview.show {
+      display: block;
+    }
+
+    .photo-thumb {
+      width: 100%;
+      max-width: 260px;
+      max-height: 180px;
+      object-fit: cover;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
     .history-list, .work-list {
       display: grid;
       gap: 10px;
@@ -595,6 +631,9 @@
           <label style="margin-top:10px;">Overall Notes
             <textarea id="overallNotes" placeholder="Required repairs, comments, closures, or parent/staff reports"></textarea>
           </label>
+          <div class="actions">
+            <button class="secondary" id="markAllPassBtn" type="button">Mark All Pass</button>
+          </div>
         </div>
         <div id="checklist"></div>
       </section>
@@ -611,9 +650,11 @@
           <div class="actions">
             <button class="primary" id="loadHistoryBtn" type="button">Load Selected</button>
             <button class="secondary" id="exportBtn" type="button">Export JSON</button>
+            <button class="secondary" id="exportCsvBtn" type="button">Export CSV</button>
             <button class="secondary" id="importBtn" type="button">Import JSON</button>
             <input id="importFile" type="file" accept="application/json,.json" hidden>
           </div>
+          <div class="report-grid" id="reportSummary"></div>
         </div>
         <div class="history-list" id="historyList"></div>
       </section>
@@ -856,6 +897,13 @@
               <label>Issue / Repair Notes
                 <textarea data-field="${id}-notes" placeholder="What was found, where it is, and what repair is needed"></textarea>
               </label>
+              <div class="photo-tools">
+                <label>Issue Photo
+                  <input type="file" accept="image/*" capture="environment" data-field="${id}-photoFile">
+                </label>
+                <img class="photo-preview" data-field="${id}-photoPreview" alt="">
+                <button class="secondary" type="button" data-field="${id}-photoClear">Remove Photo</button>
+              </div>
             </div>
           `;
           row.querySelectorAll("input[type='radio']").forEach((radio) => {
@@ -865,10 +913,50 @@
             });
           });
           row.querySelectorAll("select, textarea").forEach((field) => field.addEventListener("input", updateSummary));
+          const photoInput = row.querySelector(`[data-field="${id}-photoFile"]`);
+          photoInput.addEventListener("change", (event) => handlePhotoSelect(id, event.target.files[0]));
+          row.querySelector(`[data-field="${id}-photoClear"]`).addEventListener("click", () => clearPhoto(id));
           details.appendChild(row);
         });
         container.appendChild(details);
       });
+    }
+
+    function handlePhotoSelect(itemId, file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const image = new Image();
+        image.onload = () => {
+          const maxSide = 900;
+          const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.width * scale));
+          canvas.height = Math.max(1, Math.round(image.height * scale));
+          const context = canvas.getContext("2d");
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          setPhotoPreview(itemId, canvas.toDataURL("image/jpeg", 0.72));
+          updateSummary();
+        };
+        image.onerror = () => toast("That photo could not be read.");
+        image.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function setPhotoPreview(itemId, dataUrl) {
+      const preview = document.querySelector(`[data-field="${itemId}-photoPreview"]`);
+      if (!preview) return;
+      preview.src = dataUrl || "";
+      preview.dataset.photo = dataUrl || "";
+      preview.classList.toggle("show", Boolean(dataUrl));
+    }
+
+    function clearPhoto(itemId) {
+      const input = document.querySelector(`[data-field="${itemId}-photoFile"]`);
+      if (input) input.value = "";
+      setPhotoPreview(itemId, "");
+      updateSummary();
     }
 
     function getInspectionFromForm() {
@@ -886,7 +974,8 @@
             status,
             priority: document.querySelector(`[data-field="${id}-priority"]`)?.value || "3",
             repairStatus: document.querySelector(`[data-field="${id}-repairStatus"]`)?.value || "Open",
-            notes: document.querySelector(`[data-field="${id}-notes"]`)?.value.trim() || ""
+            notes: document.querySelector(`[data-field="${id}-notes"]`)?.value.trim() || "",
+            photo: document.querySelector(`[data-field="${id}-photoPreview"]`)?.dataset.photo || ""
           });
         });
       });
@@ -914,12 +1003,34 @@
       $("topPriority").textContent = top;
     }
 
+    function markAllPass() {
+      checklistGroups.forEach((group) => {
+        group.items.forEach(([id]) => {
+          const existing = document.querySelector(`input[name="${id}-status"]:checked`);
+          if (!existing) {
+            const pass = document.querySelector(`input[name="${id}-status"][value="Pass"]`);
+            if (pass) pass.checked = true;
+          }
+          const fields = $(`${id}-fields`);
+          if (fields) fields.classList.remove("show");
+        });
+      });
+      updateSummary();
+      toast("Blank items marked Pass.");
+    }
+
     function resetInspectionForm(keepPerson = true) {
       const inspector = $("inspector").value;
       $("weather").value = "";
       $("overallNotes").value = "";
       document.querySelectorAll("#checklist input[type='radio']").forEach((radio) => radio.checked = false);
       document.querySelectorAll("#checklist textarea").forEach((field) => field.value = "");
+      document.querySelectorAll("#checklist input[type='file']").forEach((field) => field.value = "");
+      document.querySelectorAll(".photo-preview").forEach((preview) => {
+        preview.src = "";
+        preview.dataset.photo = "";
+        preview.classList.remove("show");
+      });
       document.querySelectorAll("#checklist select").forEach((field) => {
         if (field.dataset.field?.endsWith("priority")) field.value = "3";
         if (field.dataset.field?.endsWith("repairStatus")) field.value = "Open";
@@ -937,9 +1048,14 @@
         $("inspector").focus();
         return;
       }
+      if (!inspection.date) {
+        toast("Add an inspection date before saving.");
+        $("inspectionDate").focus();
+        return;
+      }
       const checked = inspection.items.filter((item) => item.status).length;
-      if (!checked) {
-        toast("Mark at least one checklist item before saving.");
+      if (checked < inspection.items.length) {
+        toast(`Finish all checklist items before saving. ${checked} of ${inspection.items.length} complete.`);
         return;
       }
       state.inspections.unshift(inspection);
@@ -954,6 +1070,7 @@
           priority: item.priority,
           status: item.repairStatus,
           notes: item.notes,
+          photo: item.photo,
           createdAt: new Date().toISOString(),
           inspectionDate: inspection.date
         });
@@ -987,10 +1104,28 @@
           </div>
           ${record.weather ? `<div class="hint"><strong>Conditions:</strong> ${escapeHtml(record.weather)}</div>` : ""}
           ${record.overallNotes ? `<p>${escapeHtml(record.overallNotes)}</p>` : ""}
-          ${issues.map((item) => `<p><strong>P${item.priority}:</strong> ${escapeHtml(item.title)}<br><span class="hint">${escapeHtml(item.notes || "No repair notes added.")}</span></p>`).join("")}
+          ${issues.map((item) => `<p><strong>P${item.priority}:</strong> ${escapeHtml(item.title)}<br><span class="hint">${escapeHtml(item.notes || "No repair notes added.")}</span>${item.photo ? `<br><img class="photo-thumb" src="${item.photo}" alt="Issue photo">` : ""}</p>`).join("")}
         `;
         list.appendChild(div);
       });
+      renderReportSummary(records);
+    }
+
+    function renderReportSummary(records) {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+      const inRange = (record, start) => record.date && new Date(record.date + "T12:00:00") >= start;
+      const monthRecords = records.filter((record) => inRange(record, monthStart));
+      const quarterRecords = records.filter((record) => inRange(record, quarterStart));
+      const allIssues = records.flatMap((record) => record.items.filter((item) => item.status === "Issue"));
+      const openRepairs = state.workOrders.filter((order) => order.playgroundId === currentPlayground().id && order.status !== "Completed").length;
+      $("reportSummary").innerHTML = `
+        <div class="metric"><span>This Month</span><strong>${monthRecords.length}</strong></div>
+        <div class="metric"><span>This Quarter</span><strong>${quarterRecords.length}</strong></div>
+        <div class="metric"><span>Total Issues</span><strong>${allIssues.length}</strong></div>
+        <div class="metric"><span>Open Repairs</span><strong>${openRepairs}</strong></div>
+      `;
     }
 
     function loadInspectionToForm() {
@@ -1011,6 +1146,7 @@
         if (priority) priority.value = item.priority;
         if (repairStatus) repairStatus.value = item.repairStatus;
         if (notes) notes.value = item.notes;
+        setPhotoPreview(item.id, item.photo || "");
         const fields = $(`${item.id}-fields`);
         if (fields) fields.classList.toggle("show", item.status === "Issue");
       });
@@ -1041,6 +1177,7 @@
             <span class="${statusClass}"><strong>${escapeHtml(order.status)}</strong></span>
           </div>
           <p>${escapeHtml(order.notes || "No repair notes added.")}</p>
+          ${order.photo ? `<img class="photo-thumb" src="${order.photo}" alt="Repair issue photo">` : ""}
           <label>Repair Status
             <select data-work-status="${order.id}">
               <option ${order.status === "Open" ? "selected" : ""}>Open</option>
@@ -1120,6 +1257,40 @@
       URL.revokeObjectURL(url);
     }
 
+    function exportCsv() {
+      const records = state.inspections.filter((record) => record.playgroundId === currentPlayground().id);
+      const rows = [["Playground", "Date", "Time", "Inspector", "Weather", "Checklist Item", "Status", "Priority", "Repair Status", "Notes", "Photo Attached"]];
+      records.forEach((record) => {
+        record.items.forEach((item) => {
+          rows.push([
+            record.playgroundName,
+            record.date,
+            record.time,
+            record.inspector,
+            record.weather,
+            item.title,
+            item.status,
+            item.status === "Issue" ? item.priority : "",
+            item.status === "Issue" ? item.repairStatus : "",
+            item.status === "Issue" ? item.notes : "",
+            item.photo ? "Yes" : "No"
+          ]);
+        });
+      });
+      const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${currentPlayground().name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-inspections.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvCell(value) {
+      return `"${String(value ?? "").replace(/"/g, '""')}"`;
+    }
+
     function importData(file) {
       if (!file) return;
       const reader = new FileReader();
@@ -1194,8 +1365,10 @@
     $("deletePlaygroundBtn").addEventListener("click", deletePlayground);
     $("saveInspectionBtn").addEventListener("click", saveInspection);
     $("resetBtn").addEventListener("click", () => resetInspectionForm(true));
+    $("markAllPassBtn").addEventListener("click", markAllPass);
     $("loadHistoryBtn").addEventListener("click", loadInspectionToForm);
     $("exportBtn").addEventListener("click", exportData);
+    $("exportCsvBtn").addEventListener("click", exportCsv);
     $("importBtn").addEventListener("click", () => $("importFile").click());
     $("importFile").addEventListener("change", (event) => importData(event.target.files[0]));
     $("printBtn").addEventListener("click", () => window.print());
