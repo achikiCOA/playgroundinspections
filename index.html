@@ -49,6 +49,81 @@
       padding-bottom: 96px;
     }
 
+    .intro {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: calc(18px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+      background: #eef3ed;
+    }
+
+    .intro.show {
+      display: block;
+    }
+
+    .intro-card {
+      width: min(680px, calc(100vw - 32px));
+      margin: 0 auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .intro h1 {
+      font-size: 1.55rem;
+      margin-bottom: 8px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfa;
+    }
+
+    .steps li > div {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 850;
+    }
+
+    .intro-actions {
+      position: sticky;
+      bottom: 0;
+      display: grid;
+      gap: 8px;
+      padding-top: 10px;
+      background: linear-gradient(rgba(255,255,255,0), var(--paper) 18%);
+    }
+
     header {
       position: sticky;
       top: 0;
@@ -92,6 +167,18 @@
       font-weight: 800;
       font-size: .78rem;
       white-space: nowrap;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .header-actions .secondary {
+      min-width: 0;
+      padding: 0 10px;
     }
 
     main {
@@ -537,6 +624,46 @@
   </style>
 </head>
 <body>
+  <section class="intro" id="introScreen" aria-labelledby="introTitle">
+    <div class="intro-card">
+      <span class="pill">Staff guide</span>
+      <h1 id="introTitle">Get Started</h1>
+      <p class="hint">Use this app to complete playground inspections, save inspection history, and track repair items on the phone or tablet being used.</p>
+
+      <ol class="steps">
+        <li>
+          <span class="step-num">1</span>
+          <div><strong>Choose the playground.</strong><br><span class="hint">Select the correct playground card. Add or edit cards before inspections if your site has multiple play areas.</span></div>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <div><strong>Fill in the inspection details.</strong><br><span class="hint">Enter the inspector name, confirm the date and time, and add weather or surface conditions.</span></div>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <div><strong>Complete every checklist item.</strong><br><span class="hint">Use Pass, Issue, or N/A. For a clean inspection, tap Mark All Pass, then review anything that should be changed.</span></div>
+        </li>
+        <li>
+          <span class="step-num">4</span>
+          <div><strong>Document issues clearly.</strong><br><span class="hint">Choose the priority, add repair notes, set the repair status, and attach a useful photo when needed.</span></div>
+        </li>
+        <li>
+          <span class="step-num">5</span>
+          <div><strong>Save and review repairs.</strong><br><span class="hint">Saving resets the form for the next inspection. Open Repairs to update work order status.</span></div>
+        </li>
+        <li>
+          <span class="step-num">6</span>
+          <div><strong>Back up records.</strong><br><span class="hint">Records stay on this device. Use Export JSON for backups or transfer, Import JSON on another device, and CSV for spreadsheet review.</span></div>
+        </li>
+      </ol>
+
+      <div class="intro-actions">
+        <button class="primary" id="continueBtn" type="button">Continue to App</button>
+        <button class="secondary" id="showEveryTimeBtn" type="button">Show This Every Time</button>
+      </div>
+    </div>
+  </section>
+
   <div class="app">
     <header>
       <div class="topbar">
@@ -544,7 +671,10 @@
           <h1>Playground Inspection Log</h1>
           <p class="subtle">Phone-first CPSI-style checks with Ohio child care prompts</p>
         </div>
-        <span class="pill" id="todayPill"></span>
+        <div class="header-actions">
+          <button class="secondary" id="instructionsBtn" type="button">Instructions</button>
+          <span class="pill" id="todayPill"></span>
+        </div>
       </div>
     </header>
 
@@ -720,6 +850,8 @@
 
   <script>
     const STORAGE_KEY = "playgroundInspectionLog.v1";
+    const INTRO_SEEN_KEY = "playgroundInspectionIntro.seen";
+    const INTRO_ALWAYS_KEY = "playgroundInspectionIntro.always";
     const checklistGroups = [
       {
         title: "Surfacing and Fall Zones",
@@ -809,6 +941,42 @@
       $("toast").classList.add("show");
       window.clearTimeout(window.toastTimer);
       window.toastTimer = window.setTimeout(() => $("toast").classList.remove("show"), 2600);
+    }
+
+    function shouldShowIntro() {
+      return localStorage.getItem(INTRO_ALWAYS_KEY) === "true" || localStorage.getItem(INTRO_SEEN_KEY) !== "true";
+    }
+
+    function showIntro() {
+      $("introScreen").classList.add("show");
+      updateIntroPreferenceButton();
+    }
+
+    function hideIntro() {
+      if (localStorage.getItem(INTRO_ALWAYS_KEY) !== "true") {
+        localStorage.setItem(INTRO_SEEN_KEY, "true");
+      }
+      $("introScreen").classList.remove("show");
+    }
+
+    function toggleIntroEveryTime() {
+      const enabled = localStorage.getItem(INTRO_ALWAYS_KEY) === "true";
+      if (enabled) {
+        localStorage.removeItem(INTRO_ALWAYS_KEY);
+        localStorage.setItem(INTRO_SEEN_KEY, "true");
+        toast("Instructions will show only when opened.");
+      } else {
+        localStorage.setItem(INTRO_ALWAYS_KEY, "true");
+        localStorage.removeItem(INTRO_SEEN_KEY);
+        toast("Instructions will show on each visit.");
+      }
+      updateIntroPreferenceButton();
+    }
+
+    function updateIntroPreferenceButton() {
+      $("showEveryTimeBtn").textContent = localStorage.getItem(INTRO_ALWAYS_KEY) === "true"
+        ? "Show Only When Opened"
+        : "Show This Every Time";
     }
 
     function setToday() {
@@ -1366,6 +1534,9 @@
     $("saveInspectionBtn").addEventListener("click", saveInspection);
     $("resetBtn").addEventListener("click", () => resetInspectionForm(true));
     $("markAllPassBtn").addEventListener("click", markAllPass);
+    $("continueBtn").addEventListener("click", hideIntro);
+    $("instructionsBtn").addEventListener("click", showIntro);
+    $("showEveryTimeBtn").addEventListener("click", toggleIntroEveryTime);
     $("loadHistoryBtn").addEventListener("click", loadInspectionToForm);
     $("exportBtn").addEventListener("click", exportData);
     $("exportCsvBtn").addEventListener("click", exportCsv);
@@ -1378,6 +1549,7 @@
     renderChecklist();
     populatePlaygroundEditor();
     renderAll();
+    if (shouldShowIntro()) showIntro();
   </script>
 </body>
 </html>
