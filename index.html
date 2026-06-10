@@ -72,6 +72,7 @@
       border-radius: 8px;
       padding: 18px;
       box-shadow: var(--shadow);
+      overflow: hidden;
     }
 
     .intro h1 {
@@ -89,7 +90,7 @@
 
     .steps li {
       display: grid;
-      grid-template-columns: 30px 1fr;
+      grid-template-columns: 30px minmax(0, 1fr);
       gap: 10px;
       align-items: start;
       padding: 10px;
@@ -100,6 +101,12 @@
 
     .steps li > div {
       min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .intro-card p,
+    .intro-card .hint {
+      max-width: 100%;
       overflow-wrap: anywhere;
     }
 
@@ -504,6 +511,90 @@
       display: none;
     }
 
+    .completion {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: calc(16px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+      background: #eef3ed;
+    }
+
+    .completion.show {
+      display: block;
+    }
+
+    .completion-card {
+      width: min(760px, calc(100vw - 32px));
+      margin: 0 auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .completion-actions {
+      position: sticky;
+      bottom: 0;
+      display: grid;
+      gap: 8px;
+      padding-top: 10px;
+      background: linear-gradient(rgba(255,255,255,0), var(--paper) 18%);
+    }
+
+    .summary-preview {
+      display: grid;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .summary-preview table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+
+    .summary-boxes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .summary-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--soft);
+    }
+
+    .signature-row {
+      display: grid;
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .signature-line {
+      border-top: 1px solid var(--muted);
+      padding-top: 6px;
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .summary-preview th,
+    .summary-preview td {
+      border: 1px solid var(--line);
+      padding: 7px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .summary-preview th {
+      background: var(--soft);
+    }
+
     .history-list, .work-list {
       display: grid;
       gap: 10px;
@@ -619,7 +710,7 @@
     }
 
     @media print {
-      header, .tabs, .bottom-save, .actions, .playgrounds, .toast, .intro { display: none !important; }
+      header, .tabs, .bottom-save, .actions, .playgrounds, .toast, .intro, .completion { display: none !important; }
       body { background: white; }
       main { padding: 0; }
       .view { display: block; }
@@ -732,6 +823,20 @@
     </div>
   </section>
 
+  <section class="completion" id="completionScreen" aria-labelledby="completionTitle">
+    <div class="completion-card">
+      <span class="pill">Inspection saved</span>
+      <h1 id="completionTitle">Post-Inspection Summary</h1>
+      <p class="hint">Review this saved inspection, then print it, save it as a PDF, finish, or start the next inspection.</p>
+      <div class="summary-preview" id="completionSummary"></div>
+      <div class="completion-actions">
+        <button class="primary" id="printSavedSummaryBtn" type="button">Print / Download PDF</button>
+        <button class="secondary" id="startNewInspectionBtn" type="button">Start New Inspection</button>
+        <button class="secondary" id="finishInspectionBtn" type="button">Finish</button>
+      </div>
+    </div>
+  </section>
+
   <div class="app">
     <header>
       <div class="topbar">
@@ -840,7 +945,7 @@
         <div class="panel">
           <div class="section-title">
             <h2>Saved Inspections</h2>
-            <button class="secondary" id="printBtn" type="button">Print Binder Summary</button>
+            <button class="secondary" id="printBtn" type="button">Print Summary</button>
           </div>
           <label>Previous versions
             <select id="historySelect"></select>
@@ -1017,6 +1122,7 @@
 
     let state = loadState();
     let selectedPlaygroundId = state.playgrounds[0]?.id;
+    let lastSavedInspectionId = "";
 
     const $ = (id) => document.getElementById(id);
 
@@ -1383,8 +1489,34 @@
       });
       persist();
       renderAll();
+      lastSavedInspectionId = inspection.id;
+      showCompletion(inspection.id);
+      toast("Inspection saved.");
+    }
+
+    function showCompletion(inspectionId) {
+      const inspection = state.inspections.find((record) => record.id === inspectionId);
+      if (!inspection) return;
+      $("completionSummary").innerHTML = buildInspectionSummaryHtml(inspection, { includePhotos: true, preview: true });
+      $("completionScreen").classList.add("show");
+    }
+
+    function closeCompletion() {
+      $("completionScreen").classList.remove("show");
+    }
+
+    function finishInspection() {
       resetInspectionForm(true);
-      toast("Inspection saved and form reset.");
+      closeCompletion();
+      switchTab("inspect");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function startNewInspection() {
+      resetInspectionForm(true);
+      closeCompletion();
+      switchTab("inspect");
+      $("inspectionDate").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function renderHistory() {
@@ -1434,10 +1566,83 @@
       `;
     }
 
-    function printBinderSummary() {
+    function printPlaygroundSummary() {
       renderPrintSummary();
       document.body.classList.add("printing-summary");
       window.print();
+    }
+
+    function printSavedSummary() {
+      const inspectionId = lastSavedInspectionId || state.inspections[0]?.id;
+      const inspection = state.inspections.find((record) => record.id === inspectionId);
+      if (!inspection) {
+        toast("No saved inspection summary is available to print.");
+        return;
+      }
+      $("printSummary").innerHTML = buildInspectionSummaryHtml(inspection, { includePhotos: false, preview: false });
+      document.body.classList.add("printing-summary");
+      window.print();
+    }
+
+    function buildInspectionSummaryHtml(record, options = {}) {
+      const playground = state.playgrounds.find((item) => item.id === record.playgroundId) || currentPlayground();
+      const issues = record.items.filter((item) => item.status === "Issue");
+      const passes = record.items.filter((item) => item.status === "Pass").length;
+      const notApplicable = record.items.filter((item) => item.status === "N/A").length;
+      const topPriority = issues.length ? Math.min(...issues.map((item) => Number(item.priority))) : "None";
+      const photoNote = issues.some((item) => item.photo) ? "Photos attached in the saved app record / JSON export." : "No issue photos attached.";
+      return `
+        <h1>Post-Inspection Summary</h1>
+        <p><strong>Playground:</strong> ${escapeHtml(record.playgroundName || playground.name)}</p>
+        <p><strong>Location:</strong> ${escapeHtml(playground.location || "Not listed")} &nbsp; <strong>Age group:</strong> ${escapeHtml(playground.age || "Not listed")} &nbsp; <strong>Surface:</strong> ${escapeHtml(playground.surface || "Not listed")}</p>
+        <p><strong>Date:</strong> ${formatDate(record.date)} ${escapeHtml(record.time || "")} &nbsp; <strong>Inspector:</strong> ${escapeHtml(record.inspector || "Unknown")}</p>
+        ${record.weather ? `<p><strong>Conditions:</strong> ${escapeHtml(record.weather)}</p>` : ""}
+        ${record.overallNotes ? `<p><strong>Overall notes:</strong> ${escapeHtml(record.overallNotes)}</p>` : ""}
+
+        <div class="summary-boxes">
+          <div class="summary-box"><strong>Checked</strong><br>${record.items.filter((item) => item.status).length}/${record.items.length}</div>
+          <div class="summary-box"><strong>Passed</strong><br>${passes}</div>
+          <div class="summary-box"><strong>N/A</strong><br>${notApplicable}</div>
+          <div class="summary-box"><strong>Top priority</strong><br>${topPriority}</div>
+        </div>
+
+        <h2>Repair Items From This Inspection</h2>
+        ${issues.length ? `
+          <table>
+            <thead><tr><th>Priority</th><th>Checklist Item</th><th>Status</th><th>Repair Notes</th></tr></thead>
+            <tbody>
+              ${issues.map((item) => `
+                <tr>
+                  <td>${escapeHtml(item.priority)}</td>
+                  <td>${escapeHtml(item.title)}</td>
+                  <td>${escapeHtml(item.repairStatus)}</td>
+                  <td>${escapeHtml(item.notes || "No notes added.")}${options.includePhotos && item.photo ? `<br><img class="photo-thumb" src="${item.photo}" alt="Issue photo">` : ""}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <p><strong>Photo note:</strong> ${photoNote}</p>
+        ` : "<p>No repair items were recorded for this inspection.</p>"}
+
+        <h2>Checklist Results</h2>
+        <table>
+          <thead><tr><th>Section</th><th>Checklist Item</th><th>Result</th></tr></thead>
+          <tbody>
+            ${record.items.map((item) => `
+              <tr>
+                <td>${escapeHtml(item.group)}</td>
+                <td>${escapeHtml(item.title)}</td>
+                <td>${escapeHtml(item.status || "Not checked")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <div class="signature-row">
+          <div class="signature-line">Reviewed by</div>
+          <div class="signature-line">Review date</div>
+        </div>
+      `;
     }
 
     function renderPrintSummary() {
@@ -1789,12 +1994,15 @@
     $("continueBtn").addEventListener("click", hideIntro);
     $("instructionsBtn").addEventListener("click", showIntro);
     $("showEveryTimeBtn").addEventListener("click", toggleIntroEveryTime);
+    $("printSavedSummaryBtn").addEventListener("click", printSavedSummary);
+    $("finishInspectionBtn").addEventListener("click", finishInspection);
+    $("startNewInspectionBtn").addEventListener("click", startNewInspection);
     $("loadHistoryBtn").addEventListener("click", loadInspectionToForm);
     $("exportBtn").addEventListener("click", exportData);
     $("exportCsvBtn").addEventListener("click", exportCsv);
     $("importBtn").addEventListener("click", () => $("importFile").click());
     $("importFile").addEventListener("change", (event) => importData(event.target.files[0]));
-    $("printBtn").addEventListener("click", printBinderSummary);
+    $("printBtn").addEventListener("click", printPlaygroundSummary);
     $("workFilter").addEventListener("change", renderWorkOrders);
     window.addEventListener("afterprint", () => document.body.classList.remove("printing-summary"));
 
