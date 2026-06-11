@@ -148,6 +148,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      flex-wrap: wrap;
     }
 
     h1 {
@@ -181,11 +182,25 @@
       align-items: center;
       gap: 8px;
       min-width: 0;
+      margin-left: auto;
     }
 
     .header-actions .secondary {
       min-width: 0;
       padding: 0 10px;
+    }
+
+    body.selection-mode .workspace-screen,
+    body.selection-mode .bottom-save {
+      display: none !important;
+    }
+
+    body.inspection-mode .selection-screen {
+      display: none !important;
+    }
+
+    .selection-intro {
+      margin: 0 0 12px;
     }
 
     main {
@@ -217,12 +232,9 @@
 
     .cards {
       display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(230px, 78%);
+      grid-template-columns: 1fr;
       gap: 10px;
-      overflow-x: auto;
       padding: 2px 2px 12px;
-      scroll-snap-type: x mandatory;
     }
 
     .play-card {
@@ -232,7 +244,6 @@
       border-radius: 8px;
       padding: 14px;
       box-shadow: var(--shadow);
-      scroll-snap-align: start;
     }
 
     .play-card.active {
@@ -703,14 +714,14 @@
     @media (min-width: 720px) {
       main { padding: 22px; }
       h1 { font-size: 1.35rem; }
-      .cards { grid-auto-columns: minmax(260px, 31%); }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .two { grid-template-columns: repeat(2, 1fr); }
       .source-grid { grid-template-columns: repeat(2, 1fr); }
       .tabs { top: 76px; }
     }
 
     @media print {
-      header, .tabs, .bottom-save, .actions, .playgrounds, .toast, .intro, .completion { display: none !important; }
+      header, .tabs, .bottom-save, .actions, .playgrounds, .toast, .intro, .completion, .selection-screen { display: none !important; }
       body { background: white; }
       main { padding: 0; }
       .view { display: block; }
@@ -782,7 +793,7 @@
     }
   </style>
 </head>
-<body>
+<body class="selection-mode">
   <section class="intro" id="introScreen" aria-labelledby="introTitle">
     <div class="intro-card">
       <span class="pill">Staff guide</span>
@@ -845,6 +856,7 @@
           <p class="subtle">Phone-first CPSI-style checks with Ohio child care prompts</p>
         </div>
         <div class="header-actions">
+          <button class="secondary workspace-screen" id="backToPlaygroundsBtn" type="button">Back</button>
           <button class="secondary" id="instructionsBtn" type="button">Instructions</button>
           <span class="pill" id="todayPill"></span>
         </div>
@@ -852,15 +864,18 @@
     </header>
 
     <main>
-      <section class="playgrounds">
+      <section class="playgrounds selection-screen">
         <div class="section-title">
-          <h2>Playgrounds</h2>
+          <div>
+            <h2>Select Playground</h2>
+            <p class="hint selection-intro">Choose a playground to begin an inspection, review history, or update repairs.</p>
+          </div>
           <button class="secondary" id="addPlaygroundBtn" type="button">Add</button>
         </div>
         <div class="cards" id="playgroundCards"></div>
       </section>
 
-      <section class="panel" id="playgroundEditor">
+      <section class="panel workspace-screen" id="playgroundEditor">
         <div class="section-title">
           <h2>Playground Card</h2>
           <span class="tag" id="selectedStatus">Selected</span>
@@ -900,13 +915,13 @@
         </div>
       </section>
 
-      <nav class="tabs" aria-label="App views">
+      <nav class="tabs workspace-screen" aria-label="App views">
         <button class="tab active" data-tab="inspect" type="button">Inspect</button>
         <button class="tab" data-tab="history" type="button">History</button>
         <button class="tab" data-tab="work" type="button">Repairs</button>
       </nav>
 
-      <section class="view active" id="inspectView">
+      <section class="view active workspace-screen" id="inspectView">
         <div class="panel">
           <div class="section-title">
             <h2>Inspection Form</h2>
@@ -941,7 +956,7 @@
         <div id="checklist"></div>
       </section>
 
-      <section class="view" id="historyView">
+      <section class="view workspace-screen" id="historyView">
         <div class="panel">
           <div class="section-title">
             <h2>Saved Inspections</h2>
@@ -962,7 +977,7 @@
         <div class="history-list" id="historyList"></div>
       </section>
 
-      <section class="view" id="workView">
+      <section class="view workspace-screen" id="workView">
         <div class="panel">
           <div class="section-title">
             <h2>Repair Status</h2>
@@ -980,7 +995,7 @@
         <div class="work-list" id="workList"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel workspace-screen">
         <div class="section-title">
           <h2>Inspection Guidance</h2>
           <span class="tag">Reference prompts</span>
@@ -1121,10 +1136,41 @@
     ];
 
     let state = loadState();
-    let selectedPlaygroundId = state.playgrounds[0]?.id;
+    let selectedPlaygroundId = "";
     let lastSavedInspectionId = "";
 
     const $ = (id) => document.getElementById(id);
+
+    function uid() {
+      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+      return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function storageGet(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function storageSet(key, value, quiet = false) {
+      try {
+        localStorage.setItem(key, value);
+        return true;
+      } catch (error) {
+        if (!quiet && document.getElementById("toast")) {
+          toast("Could not save to this device. Export records or remove large photos, then try again.");
+        }
+        return false;
+      }
+    }
+
+    function storageRemove(key) {
+      try {
+        localStorage.removeItem(key);
+      } catch (error) {}
+    }
 
     function defaultState() {
       return {
@@ -1139,10 +1185,52 @@
 
     function loadState() {
       try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (saved && Array.isArray(saved.playgrounds)) return withStandardPlaygrounds(saved);
+        const saved = JSON.parse(storageGet(STORAGE_KEY));
+        if (saved) return withStandardPlaygrounds(normalizeState(saved));
       } catch (error) {}
       return defaultState();
+    }
+
+    function normalizeState(saved) {
+      const normalized = {
+        playgrounds: Array.isArray(saved.playgrounds) ? saved.playgrounds.map(normalizePlayground) : [],
+        inspections: Array.isArray(saved.inspections) ? saved.inspections.map(normalizeInspectionRecord) : [],
+        workOrders: Array.isArray(saved.workOrders) ? saved.workOrders.map(normalizeWorkOrder) : []
+      };
+      if (!normalized.playgrounds.length) normalized.playgrounds = defaultState().playgrounds;
+      return normalized;
+    }
+
+    function normalizePlayground(playground) {
+      return {
+        id: playground.id || uid(),
+        name: playground.name || "Unnamed Playground",
+        age: playground.age || "Mixed ages",
+        location: playground.location || "",
+        surface: playground.surface || "Engineered wood fiber",
+        createdAt: playground.createdAt || new Date().toISOString()
+      };
+    }
+
+    function normalizeInspectionRecord(record) {
+      return {
+        ...record,
+        id: record.id || uid(),
+        playgroundId: record.playgroundId || "",
+        playgroundName: record.playgroundName || "",
+        items: Array.isArray(record.items) ? record.items : [],
+        createdAt: record.createdAt || new Date().toISOString()
+      };
+    }
+
+    function normalizeWorkOrder(order) {
+      return {
+        ...order,
+        id: order.id || uid(),
+        status: order.status || "Open",
+        priority: order.priority || "3",
+        createdAt: order.createdAt || new Date().toISOString()
+      };
     }
 
     function withStandardPlaygrounds(saved) {
@@ -1158,16 +1246,39 @@
           changed = true;
         }
       });
-      if (changed) localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+      if (changed) storageSet(STORAGE_KEY, JSON.stringify(saved), true);
       return saved;
     }
 
     function persist() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return storageSet(STORAGE_KEY, JSON.stringify(state));
     }
 
     function currentPlayground() {
       return state.playgrounds.find((playground) => playground.id === selectedPlaygroundId) || state.playgrounds[0];
+    }
+
+    function setAppMode(mode) {
+      document.body.classList.toggle("selection-mode", mode === "selection");
+      document.body.classList.toggle("inspection-mode", mode === "inspection");
+    }
+
+    function openPlayground(playgroundId, resetForm = true) {
+      selectedPlaygroundId = playgroundId;
+      populatePlaygroundEditor();
+      if (resetForm) resetInspectionForm(true);
+      switchTab("inspect");
+      renderAll();
+      setAppMode("inspection");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function showPlaygroundSelection() {
+      closeCompletion();
+      selectedPlaygroundId = "";
+      renderPlaygrounds();
+      setAppMode("selection");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function formatDate(value) {
@@ -1188,7 +1299,7 @@
     }
 
     function shouldShowIntro() {
-      return localStorage.getItem(INTRO_ALWAYS_KEY) === "true" || localStorage.getItem(INTRO_SEEN_KEY) !== "true";
+      return storageGet(INTRO_ALWAYS_KEY) === "true" || storageGet(INTRO_SEEN_KEY) !== "true";
     }
 
     function showIntro() {
@@ -1197,28 +1308,28 @@
     }
 
     function hideIntro() {
-      if (localStorage.getItem(INTRO_ALWAYS_KEY) !== "true") {
-        localStorage.setItem(INTRO_SEEN_KEY, "true");
+      if (storageGet(INTRO_ALWAYS_KEY) !== "true") {
+        storageSet(INTRO_SEEN_KEY, "true", true);
       }
       $("introScreen").classList.remove("show");
     }
 
     function toggleIntroEveryTime() {
-      const enabled = localStorage.getItem(INTRO_ALWAYS_KEY) === "true";
+      const enabled = storageGet(INTRO_ALWAYS_KEY) === "true";
       if (enabled) {
-        localStorage.removeItem(INTRO_ALWAYS_KEY);
-        localStorage.setItem(INTRO_SEEN_KEY, "true");
+        storageRemove(INTRO_ALWAYS_KEY);
+        storageSet(INTRO_SEEN_KEY, "true", true);
         toast("Instructions will show only when opened.");
       } else {
-        localStorage.setItem(INTRO_ALWAYS_KEY, "true");
-        localStorage.removeItem(INTRO_SEEN_KEY);
+        storageSet(INTRO_ALWAYS_KEY, "true", true);
+        storageRemove(INTRO_SEEN_KEY);
         toast("Instructions will show on each visit.");
       }
       updateIntroPreferenceButton();
     }
 
     function updateIntroPreferenceButton() {
-      $("showEveryTimeBtn").textContent = localStorage.getItem(INTRO_ALWAYS_KEY) === "true"
+      $("showEveryTimeBtn").textContent = storageGet(INTRO_ALWAYS_KEY) === "true"
         ? "Show Only When Opened"
         : "Show This Every Time";
     }
@@ -1249,9 +1360,7 @@
           </div>
         `;
         button.addEventListener("click", () => {
-          selectedPlaygroundId = playground.id;
-          populatePlaygroundEditor();
-          renderAll();
+          openPlayground(playground.id);
         });
         cards.appendChild(button);
       });
@@ -1392,7 +1501,7 @@
         });
       });
       return {
-        id: crypto.randomUUID(),
+        id: uid(),
         playgroundId: playground.id,
         playgroundName: playground.name,
         date: $("inspectionDate").value,
@@ -1471,9 +1580,8 @@
         return;
       }
       state.inspections.unshift(inspection);
-      inspection.items.filter((item) => item.status === "Issue").forEach((item) => {
-        state.workOrders.unshift({
-          id: crypto.randomUUID(),
+      const newWorkOrders = inspection.items.filter((item) => item.status === "Issue").map((item) => ({
+          id: uid(),
           inspectionId: inspection.id,
           playgroundId: inspection.playgroundId,
           playgroundName: inspection.playgroundName,
@@ -1485,9 +1593,14 @@
           photo: item.photo,
           createdAt: new Date().toISOString(),
           inspectionDate: inspection.date
-        });
-      });
-      persist();
+      }));
+      state.workOrders.unshift(...newWorkOrders);
+      if (!persist()) {
+        state.inspections = state.inspections.filter((record) => record.id !== inspection.id);
+        state.workOrders = state.workOrders.filter((order) => order.inspectionId !== inspection.id);
+        renderAll();
+        return;
+      }
       renderAll();
       lastSavedInspectionId = inspection.id;
       showCompletion(inspection.id);
@@ -1508,8 +1621,7 @@
     function finishInspection() {
       resetInspectionForm(true);
       closeCompletion();
-      switchTab("inspect");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      showPlaygroundSelection();
     }
 
     function startNewInspection() {
@@ -1812,9 +1924,14 @@
           </label>
         `;
         article.querySelector("select").addEventListener("change", (event) => {
+          const previousStatus = order.status;
           order.status = event.target.value;
           order.updatedAt = new Date().toISOString();
-          persist();
+          if (!persist()) {
+            order.status = previousStatus;
+            renderAll();
+            return;
+          }
           renderAll();
           toast("Repair status updated.");
         });
@@ -1824,18 +1941,23 @@
 
     function savePlayground() {
       const playground = currentPlayground();
+      const previous = { ...playground };
       playground.name = $("playName").value.trim() || "Unnamed Playground";
       playground.age = $("playAge").value;
       playground.location = $("playLocation").value.trim();
       playground.surface = $("playSurface").value;
-      persist();
+      if (!persist()) {
+        Object.assign(playground, previous);
+        populatePlaygroundEditor();
+        return;
+      }
       renderAll();
       toast("Playground card saved.");
     }
 
     function addPlayground() {
       const playground = {
-        id: crypto.randomUUID(),
+        id: uid(),
         name: "New Playground",
         age: "2-5 years",
         location: "",
@@ -1844,9 +1966,13 @@
       };
       state.playgrounds.push(playground);
       selectedPlaygroundId = playground.id;
-      persist();
-      populatePlaygroundEditor();
-      renderAll();
+      if (!persist()) {
+        state.playgrounds = state.playgrounds.filter((item) => item.id !== playground.id);
+        selectedPlaygroundId = "";
+        renderAll();
+        return;
+      }
+      openPlayground(playground.id);
       $("playName").focus();
     }
 
@@ -1858,12 +1984,18 @@
       const playground = currentPlayground();
       const ok = confirm(`Delete ${playground.name}? Saved inspections and repairs for it will also be removed.`);
       if (!ok) return;
+      const previousState = JSON.stringify(state);
       state.playgrounds = state.playgrounds.filter((item) => item.id !== playground.id);
       state.inspections = state.inspections.filter((item) => item.playgroundId !== playground.id);
       state.workOrders = state.workOrders.filter((item) => item.playgroundId !== playground.id);
       selectedPlaygroundId = state.playgrounds[0].id;
-      persist();
-      renderAll();
+      if (!persist()) {
+        state = JSON.parse(previousState);
+        selectedPlaygroundId = playground.id;
+        renderAll();
+        return;
+      }
+      showPlaygroundSelection();
       toast("Playground deleted.");
     }
 
@@ -1922,14 +2054,15 @@
       reader.onload = () => {
         try {
           const imported = JSON.parse(reader.result);
-          const playgrounds = imported.playgrounds || (imported.playground ? [imported.playground] : []);
-          const inspections = imported.inspections || [];
-          const workOrders = imported.workOrders || [];
+          const playgrounds = (imported.playgrounds || (imported.playground ? [imported.playground] : [])).map(normalizePlayground);
+          const inspections = (imported.inspections || []).map(normalizeInspectionRecord);
+          const workOrders = (imported.workOrders || []).map(normalizeWorkOrder);
           if (!playgrounds.length && !inspections.length && !workOrders.length) {
             toast("That JSON file does not look like an inspection export.");
             return;
           }
 
+          const previousState = JSON.stringify(state);
           playgrounds.forEach((playground) => {
             const existing = state.playgrounds.find((item) => item.id === playground.id);
             if (existing) Object.assign(existing, playground);
@@ -1939,8 +2072,14 @@
           mergeById(state.workOrders, workOrders);
 
           if (playgrounds[0]?.id) selectedPlaygroundId = playgrounds[0].id;
-          persist();
-          renderAll();
+          if (!persist()) {
+            state = JSON.parse(previousState);
+            selectedPlaygroundId = "";
+            renderAll();
+            return;
+          }
+          if (playgrounds[0]?.id) openPlayground(playgrounds[0].id);
+          else renderAll();
           toast(`Imported ${inspections.length} inspections and ${workOrders.length} repairs.`);
         } catch (error) {
           toast("Import failed. Choose a valid inspection JSON export.");
@@ -1991,6 +2130,7 @@
     $("saveInspectionBtn").addEventListener("click", saveInspection);
     $("resetBtn").addEventListener("click", () => resetInspectionForm(true));
     $("markAllPassBtn").addEventListener("click", markAllPass);
+    $("backToPlaygroundsBtn").addEventListener("click", showPlaygroundSelection);
     $("continueBtn").addEventListener("click", hideIntro);
     $("instructionsBtn").addEventListener("click", showIntro);
     $("showEveryTimeBtn").addEventListener("click", toggleIntroEveryTime);
@@ -2010,6 +2150,7 @@
     renderChecklist();
     populatePlaygroundEditor();
     renderAll();
+    setAppMode("selection");
     if (shouldShowIntro()) showIntro();
   </script>
 </body>

@@ -6,6 +6,8 @@ The app opens with standard playground cards for East State Street, Highland Par
 
 Each playground history screen includes a printable playground summary with inspection counts, open repairs, recent inspections, issue detail, completed repairs, and review signature lines. Saving an inspection also opens a post-inspection summary that can be printed or saved as a PDF.
 
+On mobile, staff start from a playground selection page. Selecting a card opens the inspection workspace for that playground, and the Back button returns to the playground list.
+
 ## Live App
 
 After GitHub Pages is enabled, the app will be available at:
