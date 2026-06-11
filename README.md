@@ -20,6 +20,20 @@ Inspection records are stored in the browser's local storage on the device that 
 
 See [SECURITY.md](SECURITY.md) for privacy notes, storage risks, and future authentication recommendations.
 
+## Developer Handoff
+
+- [Setup and handoff guide](docs/SETUP_AND_HANDOFF.md)
+- [Architecture notes](docs/ARCHITECTURE.md)
+- [Data model](docs/DATA_MODEL.md)
+- [Operations guide](docs/OPERATIONS.md)
+- [Future backend and authentication plan](docs/FUTURE_BACKEND_AUTH.md)
+
+Optional validation:
+
+```bash
+npm run check
+```
+
 ## Inspection References
 
 - NRPA Daily Dozen Playground Safety Checklist
