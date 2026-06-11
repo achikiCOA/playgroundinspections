@@ -467,6 +467,23 @@
       color: var(--brand-dark);
     }
 
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 10px;
+      color: var(--ink);
+      font-size: .88rem;
+      font-weight: 650;
+      text-transform: none;
+    }
+
+    .checkbox-row input {
+      width: auto;
+      min-height: auto;
+      margin-top: 3px;
+    }
+
     .issue input:checked + span {
       border-color: var(--danger);
       background: #fae9e9;
@@ -973,6 +990,10 @@
             <button class="secondary" id="importBtn" type="button">Import JSON</button>
             <input id="importFile" type="file" accept="application/json,.json" hidden>
           </div>
+          <label class="checkbox-row">
+            <input id="includePrivateExport" type="checkbox">
+            Include inspector names and issue photos in exports
+          </label>
           <div class="report-grid" id="reportSummary"></div>
         </div>
         <div class="history-list" id="historyList"></div>
@@ -1011,6 +1032,10 @@
             Saved inspections stay on the device and browser that entered them. Use Export JSON and Import JSON to move records between devices, or connect a cloud database for automatic sync.
           </div>
           <div class="source">
+            <strong>Privacy note</strong>
+            This app does not request GPS location. Photos are optional, compressed in the browser, and may show people or identifying details if staff include them. Exports omit inspector names and photo data unless the export privacy checkbox is selected.
+          </div>
+          <div class="source">
             <strong>Ohio child care notes</strong>
             Quarterly playground inspection records should be kept for one year. Outdoor spaces need adequate usable area, protected boundaries, functional gate latches, shade, bathroom/drinking-water access, and safe fall zones.
           </div>
@@ -1043,6 +1068,15 @@
     const STORAGE_KEY = "playgroundInspectionLog.v1";
     const INTRO_SEEN_KEY = "playgroundInspectionIntro.seen";
     const INTRO_ALWAYS_KEY = "playgroundInspectionIntro.always";
+    const MAX_PHOTO_FILE_BYTES = 5 * 1024 * 1024;
+    const MAX_PHOTO_DATA_URL_BYTES = 850 * 1024;
+    const MAX_LOCAL_STORAGE_BYTES = 4.5 * 1024 * 1024;
+    const WARN_LOCAL_STORAGE_BYTES = 3.5 * 1024 * 1024;
+    const allowedReferenceHosts = new Set([
+      "www.nrpa.org",
+      "codes.ohio.gov",
+      "playgroundsafetyinspections.net"
+    ]);
     const standardPlaygrounds = [
       {
         id: "standard-east-state-grade-school",
@@ -1139,6 +1173,7 @@
     let state = loadState();
     let selectedPlaygroundId = "";
     let lastSavedInspectionId = "";
+    let storageWarningShown = false;
 
     const $ = (id) => document.getElementById(id);
 
@@ -1157,20 +1192,65 @@
 
     function storageSet(key, value, quiet = false) {
       try {
+        if (key === STORAGE_KEY) {
+          const bytes = new Blob([value]).size;
+          if (bytes > MAX_LOCAL_STORAGE_BYTES) {
+            if (!quiet && document.getElementById("toast")) {
+              toast("Storage limit reached. Export records, remove large photos, or clear old device data before saving.");
+            }
+            return false;
+          }
+          if (bytes > WARN_LOCAL_STORAGE_BYTES && !storageWarningShown && !quiet && document.getElementById("toast")) {
+            storageWarningShown = true;
+            toast("Device storage is getting full. Export a backup soon and avoid unnecessary photos.");
+          }
+        }
         localStorage.setItem(key, value);
         return true;
       } catch (error) {
         if (!quiet && document.getElementById("toast")) {
           toast("Could not save to this device. Export records or remove large photos, then try again.");
         }
-        return false;
-      }
+      return false;
+    }
     }
 
     function storageRemove(key) {
       try {
         localStorage.removeItem(key);
       } catch (error) {}
+    }
+
+    function clearElement(element) {
+      while (element.firstChild) element.removeChild(element.firstChild);
+    }
+
+    function appendTextElement(parent, tagName, text, className = "") {
+      const element = document.createElement(tagName);
+      if (className) element.className = className;
+      element.textContent = text ?? "";
+      parent.appendChild(element);
+      return element;
+    }
+
+    function isSafeImageDataUrl(value) {
+      return typeof value === "string" && /^data:image\/(?:png|jpeg|jpg|webp);base64,/i.test(value);
+    }
+
+    function validateReferenceLinks() {
+      document.querySelectorAll("a[href]").forEach((link) => {
+        try {
+          const url = new URL(link.href);
+          if (url.protocol !== "https:" || !allowedReferenceHosts.has(url.hostname)) {
+            link.removeAttribute("href");
+            return;
+          }
+          link.rel = "noopener noreferrer";
+          link.target = "_blank";
+        } catch (error) {
+          link.removeAttribute("href");
+        }
+      });
     }
 
     function defaultState() {
@@ -1344,22 +1424,21 @@
 
     function renderPlaygrounds() {
       const cards = $("playgroundCards");
-      cards.innerHTML = "";
+      clearElement(cards);
       state.playgrounds.forEach((playground) => {
         const inspections = state.inspections.filter((record) => record.playgroundId === playground.id);
         const openWork = state.workOrders.filter((work) => work.playgroundId === playground.id && work.status !== "Completed").length;
         const button = document.createElement("button");
         button.type = "button";
         button.className = "play-card" + (playground.id === selectedPlaygroundId ? " active" : "");
-        button.innerHTML = `
-          <strong>${escapeHtml(playground.name)}</strong>
-          <div class="hint">${escapeHtml(playground.location || "No location set")}</div>
-          <div class="card-meta">
-            <span class="tag">${escapeHtml(playground.age)}</span>
-            <span class="tag">${inspections.length} inspections</span>
-            <span class="tag">${openWork} repairs</span>
-          </div>
-        `;
+        appendTextElement(button, "strong", playground.name);
+        appendTextElement(button, "div", playground.location || "No location set", "hint");
+        const meta = document.createElement("div");
+        meta.className = "card-meta";
+        appendTextElement(meta, "span", playground.age, "tag");
+        appendTextElement(meta, "span", `${inspections.length} inspections`, "tag");
+        appendTextElement(meta, "span", `${openWork} repairs`, "tag");
+        button.appendChild(meta);
         button.addEventListener("click", () => {
           openPlayground(playground.id);
         });
@@ -1379,7 +1458,7 @@
 
     function renderChecklist() {
       const container = $("checklist");
-      container.innerHTML = "";
+      clearElement(container);
       checklistGroups.forEach((group, groupIndex) => {
         const details = document.createElement("details");
         details.open = groupIndex < 2;
@@ -1446,6 +1525,16 @@
 
     function handlePhotoSelect(itemId, file) {
       if (!file) return;
+      if (!file.type || !file.type.startsWith("image/")) {
+        toast("Choose an image file for the issue photo.");
+        clearPhoto(itemId);
+        return;
+      }
+      if (file.size > MAX_PHOTO_FILE_BYTES) {
+        toast("Photo is too large. Use an image under 5 MB.");
+        clearPhoto(itemId);
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const image = new Image();
@@ -1457,7 +1546,13 @@
           canvas.height = Math.max(1, Math.round(image.height * scale));
           const context = canvas.getContext("2d");
           context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          setPhotoPreview(itemId, canvas.toDataURL("image/jpeg", 0.72));
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+          if (new Blob([dataUrl]).size > MAX_PHOTO_DATA_URL_BYTES) {
+            toast("Compressed photo is still too large. Use a smaller photo.");
+            clearPhoto(itemId);
+            return;
+          }
+          setPhotoPreview(itemId, dataUrl);
           updateSummary();
         };
         image.onerror = () => toast("That photo could not be read.");
@@ -1469,9 +1564,10 @@
     function setPhotoPreview(itemId, dataUrl) {
       const preview = document.querySelector(`[data-field="${itemId}-photoPreview"]`);
       if (!preview) return;
-      preview.src = dataUrl || "";
-      preview.dataset.photo = dataUrl || "";
-      preview.classList.toggle("show", Boolean(dataUrl));
+      const safeDataUrl = isSafeImageDataUrl(dataUrl) ? dataUrl : "";
+      preview.src = safeDataUrl;
+      preview.dataset.photo = safeDataUrl;
+      preview.classList.toggle("show", Boolean(safeDataUrl));
     }
 
     function clearPhoto(itemId) {
@@ -1636,27 +1732,50 @@
       const select = $("historySelect");
       const list = $("historyList");
       const records = state.inspections.filter((record) => record.playgroundId === currentPlayground().id);
-      select.innerHTML = records.length
-        ? records.map((record) => `<option value="${record.id}">${formatDate(record.date)} ${record.time || ""} - ${escapeHtml(record.inspector || "Unknown")}</option>`).join("")
-        : `<option value="">No saved inspections</option>`;
-      list.innerHTML = records.length ? "" : `<div class="panel hint">No inspections saved for this playground yet.</div>`;
+      clearElement(select);
+      clearElement(list);
+      if (records.length) {
+        records.forEach((record) => {
+          const option = document.createElement("option");
+          option.value = record.id;
+          option.textContent = `${formatDate(record.date)} ${record.time || ""} - ${record.inspector || "Unknown"}`;
+          select.appendChild(option);
+        });
+      } else {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "No saved inspections";
+        select.appendChild(option);
+        appendTextElement(list, "div", "No inspections saved for this playground yet.", "panel hint");
+      }
       records.forEach((record) => {
         const issues = record.items.filter((item) => item.status === "Issue");
         const checked = record.items.filter((item) => item.status).length;
         const div = document.createElement("article");
         div.className = "record";
-        div.innerHTML = `
-          <div class="record-head">
-            <div>
-              <strong>${formatDate(record.date)} ${escapeHtml(record.time || "")}</strong>
-              <div class="hint">${escapeHtml(record.inspector || "Unknown inspector")} - ${checked} checked - ${issues.length} issues</div>
-            </div>
-            <span class="tag">${issues.length ? "Priority " + Math.min(...issues.map((item) => Number(item.priority))) : "Clear"}</span>
-          </div>
-          ${record.weather ? `<div class="hint"><strong>Conditions:</strong> ${escapeHtml(record.weather)}</div>` : ""}
-          ${record.overallNotes ? `<p>${escapeHtml(record.overallNotes)}</p>` : ""}
-          ${issues.map((item) => `<p><strong>P${item.priority}:</strong> ${escapeHtml(item.title)}<br><span class="hint">${escapeHtml(item.notes || "No repair notes added.")}</span>${item.photo ? `<br><img class="photo-thumb" src="${item.photo}" alt="Issue photo">` : ""}</p>`).join("")}
-        `;
+        const head = document.createElement("div");
+        head.className = "record-head";
+        const headText = document.createElement("div");
+        appendTextElement(headText, "strong", `${formatDate(record.date)} ${record.time || ""}`);
+        appendTextElement(headText, "div", `${record.inspector || "Unknown inspector"} - ${checked} checked - ${issues.length} issues`, "hint");
+        appendTextElement(head, "span", issues.length ? `Priority ${Math.min(...issues.map((item) => Number(item.priority)))}` : "Clear", "tag");
+        head.insertBefore(headText, head.firstChild);
+        div.appendChild(head);
+        if (record.weather) appendTextElement(div, "div", `Conditions: ${record.weather}`, "hint");
+        if (record.overallNotes) appendTextElement(div, "p", record.overallNotes);
+        issues.forEach((item) => {
+          const issue = document.createElement("p");
+          appendTextElement(issue, "strong", `P${item.priority}: ${item.title}`);
+          appendTextElement(issue, "span", item.notes || "No repair notes added.", "hint");
+          if (isSafeImageDataUrl(item.photo)) {
+            const img = document.createElement("img");
+            img.className = "photo-thumb";
+            img.src = item.photo;
+            img.alt = "Issue photo";
+            issue.appendChild(img);
+          }
+          div.appendChild(issue);
+        });
         list.appendChild(div);
       });
       renderReportSummary(records);
@@ -2083,30 +2202,40 @@
         .filter((order) => filter === "all" || order.status === filter);
       const open = state.workOrders.filter((order) => order.playgroundId === currentPlayground().id && order.status !== "Completed").length;
       $("workCount").textContent = `${open} open`;
-      list.innerHTML = orders.length ? "" : `<div class="panel hint">No repair items match this filter.</div>`;
+      clearElement(list);
+      if (!orders.length) appendTextElement(list, "div", "No repair items match this filter.", "panel hint");
       orders.forEach((order) => {
         const article = document.createElement("article");
         article.className = "work-order";
         const statusClass = order.status === "Completed" ? "status-done" : order.status === "In progress" ? "status-progress" : "status-open";
-        article.innerHTML = `
-          <div class="work-head">
-            <div>
-              <strong>P${order.priority}: ${escapeHtml(order.itemTitle)}</strong>
-              <div class="hint">${formatDate(order.inspectionDate)} - ${escapeHtml(order.playgroundName)}</div>
-            </div>
-            <span class="${statusClass}"><strong>${escapeHtml(order.status)}</strong></span>
-          </div>
-          <p>${escapeHtml(order.notes || "No repair notes added.")}</p>
-          ${order.photo ? `<img class="photo-thumb" src="${order.photo}" alt="Repair issue photo">` : ""}
-          <label>Repair Status
-            <select data-work-status="${order.id}">
-              <option ${order.status === "Open" ? "selected" : ""}>Open</option>
-              <option ${order.status === "In progress" ? "selected" : ""}>In progress</option>
-              <option ${order.status === "Completed" ? "selected" : ""}>Completed</option>
-            </select>
-          </label>
-        `;
-        article.querySelector("select").addEventListener("change", (event) => {
+        const head = document.createElement("div");
+        head.className = "work-head";
+        const headText = document.createElement("div");
+        appendTextElement(headText, "strong", `P${order.priority}: ${order.itemTitle || "Repair item"}`);
+        appendTextElement(headText, "div", `${formatDate(order.inspectionDate)} - ${order.playgroundName || ""}`, "hint");
+        const status = appendTextElement(head, "span", order.status, statusClass);
+        status.style.fontWeight = "800";
+        head.insertBefore(headText, head.firstChild);
+        article.appendChild(head);
+        appendTextElement(article, "p", order.notes || "No repair notes added.");
+        if (isSafeImageDataUrl(order.photo)) {
+          const img = document.createElement("img");
+          img.className = "photo-thumb";
+          img.src = order.photo;
+          img.alt = "Repair issue photo";
+          article.appendChild(img);
+        }
+        const label = appendTextElement(article, "label", "Repair Status");
+        const select = document.createElement("select");
+        select.dataset.workStatus = order.id;
+        ["Open", "In progress", "Completed"].forEach((statusValue) => {
+          const option = document.createElement("option");
+          option.textContent = statusValue;
+          option.selected = order.status === statusValue;
+          select.appendChild(option);
+        });
+        label.appendChild(select);
+        select.addEventListener("change", (event) => {
           const previousStatus = order.status;
           order.status = event.target.value;
           order.updatedAt = new Date().toISOString();
@@ -2183,10 +2312,19 @@
     }
 
     function exportData() {
+      const includePrivate = $("includePrivateExport").checked;
       const data = {
         playground: currentPlayground(),
-        inspections: state.inspections.filter((record) => record.playgroundId === currentPlayground().id),
-        workOrders: state.workOrders.filter((order) => order.playgroundId === currentPlayground().id)
+        exportOptions: {
+          includesInspectorNames: includePrivate,
+          includesPhotos: includePrivate
+        },
+        inspections: state.inspections
+          .filter((record) => record.playgroundId === currentPlayground().id)
+          .map((record) => exportInspectionRecord(record, includePrivate)),
+        workOrders: state.workOrders
+          .filter((order) => order.playgroundId === currentPlayground().id)
+          .map((order) => exportWorkOrder(order, includePrivate))
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -2197,7 +2335,26 @@
       URL.revokeObjectURL(url);
     }
 
+    function exportInspectionRecord(record, includePrivate) {
+      return {
+        ...record,
+        inspector: includePrivate ? record.inspector : "",
+        items: record.items.map((item) => ({
+          ...item,
+          photo: includePrivate ? item.photo : ""
+        }))
+      };
+    }
+
+    function exportWorkOrder(order, includePrivate) {
+      return {
+        ...order,
+        photo: includePrivate ? order.photo : ""
+      };
+    }
+
     function exportCsv() {
+      const includePrivate = $("includePrivateExport").checked;
       const records = state.inspections.filter((record) => record.playgroundId === currentPlayground().id);
       const rows = [["Playground", "Date", "Time", "Inspector", "Weather", "Checklist Item", "Status", "Priority", "Repair Status", "Notes", "Photo Attached"]];
       records.forEach((record) => {
@@ -2206,14 +2363,14 @@
             record.playgroundName,
             record.date,
             record.time,
-            record.inspector,
+            includePrivate ? record.inspector : "",
             record.weather,
             item.title,
             item.status,
             item.status === "Issue" ? item.priority : "",
             item.status === "Issue" ? item.repairStatus : "",
             item.status === "Issue" ? item.notes : "",
-            item.photo ? "Yes" : "No"
+            includePrivate && item.photo ? "Yes" : "No"
           ]);
         });
       });
@@ -2331,6 +2488,7 @@
     window.addEventListener("afterprint", () => document.body.classList.remove("printing-summary"));
 
     setToday();
+    validateReferenceLinks();
     renderChecklist();
     populatePlaygroundEditor();
     renderAll();
