@@ -4,7 +4,7 @@ A phone-first static web app for documenting playground inspections, saving insp
 
 The app opens with standard playground cards for East State Street, Highland Park, Richland Avenue Park, and West State Street Park play areas.
 
-Each playground history screen includes a printable playground summary with inspection counts, open repairs, recent inspections, issue detail, completed repairs, and review signature lines. Saving an inspection also opens a post-inspection summary that can be printed or saved as a PDF.
+Each playground history screen includes a printable playground summary with inspection counts, open repairs, recent inspections, issue detail, completed repairs, and review signature lines. Saving an inspection also opens a post-inspection summary that can be printed, saved as a PDF, or shared to an email app where supported. If the browser cannot attach files through sharing, the app downloads the PDF and opens an email draft for manual attachment.
 
 On mobile, staff start from a playground selection page. Selecting a card opens the inspection workspace for that playground, and the Back button returns to the playground list.
 

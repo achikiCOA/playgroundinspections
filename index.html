@@ -842,6 +842,7 @@
       <div class="summary-preview" id="completionSummary"></div>
       <div class="completion-actions">
         <button class="primary" id="printSavedSummaryBtn" type="button">Print / Download PDF</button>
+        <button class="secondary" id="emailSavedSummaryBtn" type="button">Email / Share PDF</button>
         <button class="secondary" id="startNewInspectionBtn" type="button">Start New Inspection</button>
         <button class="secondary" id="finishInspectionBtn" type="button">Finish</button>
       </div>
@@ -1696,6 +1697,188 @@
       window.print();
     }
 
+    async function emailSavedSummaryPdf() {
+      const inspectionId = lastSavedInspectionId || state.inspections[0]?.id;
+      const inspection = state.inspections.find((record) => record.id === inspectionId);
+      if (!inspection) {
+        toast("No saved inspection summary is available to email.");
+        return;
+      }
+
+      const playgroundName = inspection.playgroundName || currentPlayground().name;
+      const fileName = `${playgroundName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${inspection.date || "inspection"}-summary.pdf`;
+      const pdfBlob = buildSimplePdfBlob(buildInspectionSummaryLines(inspection));
+      const pdfFile = new File([pdfBlob], fileName, { type: "application/pdf" });
+      const subject = `Playground inspection summary - ${playgroundName} - ${formatDate(inspection.date)}`;
+      const body = buildEmailBody(inspection);
+
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] }) && navigator.share) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: subject,
+            text: body
+          });
+          return;
+        } catch (error) {
+          if (error.name === "AbortError") return;
+        }
+      }
+
+      downloadBlob(pdfBlob, fileName);
+      const recipient = (prompt("Enter recipient email address, or leave blank to open an unsent email draft:") || "").trim().replace(/[?\s]/g, "");
+      const mailto = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${body}\n\nA PDF summary has been downloaded. Attach it to this email before sending.`)}`;
+      window.location.href = mailto;
+      toast("PDF downloaded. Attach it to the email draft before sending.");
+    }
+
+    function buildEmailBody(record) {
+      const issues = record.items.filter((item) => item.status === "Issue");
+      return [
+        "A playground inspection summary is ready.",
+        "",
+        `Playground: ${record.playgroundName}`,
+        `Date: ${formatDate(record.date)} ${record.time || ""}`,
+        `Inspector: ${record.inspector || "Unknown"}`,
+        `Issues: ${issues.length}`,
+        "",
+        "Please see the attached or downloaded PDF summary."
+      ].join("\n");
+    }
+
+    function buildInspectionSummaryLines(record) {
+      const playground = state.playgrounds.find((item) => item.id === record.playgroundId) || currentPlayground();
+      const issues = record.items.filter((item) => item.status === "Issue");
+      const checked = record.items.filter((item) => item.status).length;
+      const lines = [
+        "Post-Inspection Summary",
+        "",
+        `Playground: ${record.playgroundName || playground.name}`,
+        `Location: ${playground.location || "Not listed"}`,
+        `Age group: ${playground.age || "Not listed"}`,
+        `Surface: ${playground.surface || "Not listed"}`,
+        `Date: ${formatDate(record.date)} ${record.time || ""}`,
+        `Inspector: ${record.inspector || "Unknown"}`,
+        record.weather ? `Conditions: ${record.weather}` : "",
+        record.overallNotes ? `Overall notes: ${record.overallNotes}` : "",
+        "",
+        `Checklist completed: ${checked}/${record.items.length}`,
+        `Repair items: ${issues.length}`,
+        "",
+        "Repair Items"
+      ].filter(Boolean);
+
+      if (issues.length) {
+        issues.forEach((item) => {
+          lines.push(`P${item.priority} - ${item.title}`);
+          lines.push(`Status: ${item.repairStatus}`);
+          lines.push(`Notes: ${item.notes || "No notes added."}`);
+          lines.push("");
+        });
+      } else {
+        lines.push("No repair items were recorded for this inspection.");
+        lines.push("");
+      }
+
+      lines.push("Checklist Results");
+      record.items.forEach((item) => {
+        lines.push(`${item.status || "Not checked"} - ${item.group}: ${item.title}`);
+      });
+      lines.push("");
+      lines.push("Reviewed by: ______________________________");
+      lines.push("Review date: ______________________________");
+      return lines;
+    }
+
+    function buildSimplePdfBlob(lines) {
+      const encoder = new TextEncoder();
+      const pageWidth = 612;
+      const pageHeight = 792;
+      const margin = 54;
+      const lineHeight = 15;
+      const maxChars = 86;
+      const pages = [];
+      let pageLines = [];
+
+      lines.flatMap((line) => wrapPdfLine(line, maxChars)).forEach((line) => {
+        if (pageLines.length >= 44) {
+          pages.push(pageLines);
+          pageLines = [];
+        }
+        pageLines.push(line);
+      });
+      if (pageLines.length) pages.push(pageLines);
+
+      const objects = [];
+      const addObject = (content) => {
+        objects.push(content);
+        return objects.length;
+      };
+
+      const fontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+      const pageIds = [];
+      pages.forEach((page) => {
+        const stream = page.map((line, index) => {
+          const y = pageHeight - margin - (index * lineHeight);
+          return `BT /F1 10 Tf ${margin} ${y} Td (${escapePdfText(line)}) Tj ET`;
+        }).join("\n");
+        const streamId = addObject(`<< /Length ${encoder.encode(stream).length} >>\nstream\n${stream}\nendstream`);
+        const pageId = addObject(`<< /Type /Page /Parent 0 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${streamId} 0 R >>`);
+        pageIds.push(pageId);
+      });
+
+      const pagesId = addObject(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
+      pageIds.forEach((pageId) => {
+        objects[pageId - 1] = objects[pageId - 1].replace("/Parent 0 0 R", `/Parent ${pagesId} 0 R`);
+      });
+      const catalogId = addObject(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+
+      let pdf = "%PDF-1.4\n";
+      const offsets = [0];
+      objects.forEach((content, index) => {
+        offsets.push(encoder.encode(pdf).length);
+        pdf += `${index + 1} 0 obj\n${content}\nendobj\n`;
+      });
+      const xrefStart = encoder.encode(pdf).length;
+      pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+      offsets.slice(1).forEach((offset) => {
+        pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+      });
+      pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+      return new Blob([pdf], { type: "application/pdf" });
+    }
+
+    function wrapPdfLine(line, maxChars) {
+      if (!line) return [""];
+      const words = String(line).split(/\s+/);
+      const wrapped = [];
+      let current = "";
+      words.forEach((word) => {
+        const next = current ? `${current} ${word}` : word;
+        if (next.length > maxChars && current) {
+          wrapped.push(current);
+          current = word;
+        } else {
+          current = next;
+        }
+      });
+      if (current) wrapped.push(current);
+      return wrapped;
+    }
+
+    function escapePdfText(value) {
+      return String(value ?? "").replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7E]/g, " ");
+    }
+
+    function downloadBlob(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
     function buildInspectionSummaryHtml(record, options = {}) {
       const playground = state.playgrounds.find((item) => item.id === record.playgroundId) || currentPlayground();
       const issues = record.items.filter((item) => item.status === "Issue");
@@ -2135,6 +2318,7 @@
     $("instructionsBtn").addEventListener("click", showIntro);
     $("showEveryTimeBtn").addEventListener("click", toggleIntroEveryTime);
     $("printSavedSummaryBtn").addEventListener("click", printSavedSummary);
+    $("emailSavedSummaryBtn").addEventListener("click", emailSavedSummaryPdf);
     $("finishInspectionBtn").addEventListener("click", finishInspection);
     $("startNewInspectionBtn").addEventListener("click", startNewInspection);
     $("loadHistoryBtn").addEventListener("click", loadInspectionToForm);
